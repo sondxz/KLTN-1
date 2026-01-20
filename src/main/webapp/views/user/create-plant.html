@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng tải cây dược liệu - DuocLieuVN</title>
+    <link rel="icon" type="image/png" href="/image/cay.jfif">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/2.0.2/js/toastr.min.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="js/main.js"></script>
+    <script src="js/user-plant.js"></script>
+    <script>
+        window.onload = async function() {
+            const token = localStorage.getItem("token");
+            if(!token) {
+                window.location.href = '/login';
+                return;
+            }
+            await loadDiseasesSelect();
+            await loadFamiliesSelect();
+        }
+    </script>
+</head>
+<body>
+<header id="header-main"></header>
+
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <div class="mb-4">
+                <h1 class="h3 fw-bold">Đăng tải cây dược liệu mới</h1>
+                <p class="text-muted">Vui lòng điền đầy đủ thông tin. Bài đăng của bạn sẽ được chuyên gia kiểm duyệt trước khi xuất bản.</p>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <form id="plantForm">
+                        <!-- Thông tin cơ bản -->
+                        <div class="mb-4">
+                            <h5 class="fw-bold mb-3">Thông tin cơ bản</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Tên cây <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="name" required onkeyup="createSlug(this.value)">
+                                    <div id="nameValidation" class="mt-1" style="font-size: 0.875rem;"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Tên khoa học</label>
+                                    <input type="text" class="form-control" id="scientificName">
+                                    <div id="scientificNameValidation" class="mt-1" style="font-size: 0.875rem;"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">
+                                        Họ thực vật 
+                                        <span class="text-danger">*</span>
+                                        <span 
+                                            class="text-muted ms-2" 
+                                            title="Nếu không chắc, có thể để mặc định 'Chưa phân loại'"
+                                            style="cursor: help;"
+                                        >
+                                            <i class="bi bi-info-circle"></i>
+                                        </span>
+                                    </label>
+                                    <select class="form-select" id="families" required></select>
+                                    <small class="form-text text-muted">
+                                        💡 Nếu không chắc, có thể để mặc định <strong>"Chưa phân loại"</strong>
+                                    </small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Bộ phận dùng <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="partsUsed" placeholder="Ví dụ: Lá, rễ, hoa" required>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Mô tả <span class="text-danger">*</span></label>
+                                    <textarea class="form-control" id="description" rows="3" required></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Công dụng -->
+                        <div class="mb-4">
+                            <h5 class="fw-bold mb-3">Công dụng chữa bệnh</h5>
+                            <select class="form-select" id="diseases" multiple></select>
+                            <small class="text-muted">Chọn các công dụng mà cây dược liệu này có thể chữa trị</small>
+                        </div>
+
+                        <!-- Ảnh -->
+                        <div class="mb-4">
+                            <h5 class="fw-bold mb-3">Hình ảnh</h5>
+                            <div class="mb-3">
+                                <label class="form-label">Ảnh chính</label>
+                                <input type="file" class="form-control" id="mainImage" accept="image/*">
+                                <div id="mainImagePreview" class="mt-2"></div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Ảnh phụ (tối đa 5 ảnh)</label>
+                                <input type="file" class="form-control" id="subImages" multiple accept="image/*">
+                                <div id="subImagesPreview" class="row g-2 mt-2"></div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle"></i> Gửi để duyệt
+                            </button>
+                            <a href="/plant" class="btn btn-outline-secondary">Hủy</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer class="pt-5" id="footer-main"></footer>
+
+<script>
+    function createSlug(name) {
+        let slug = name.toLowerCase()
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9\s-]/g, "")
+            .replace(/[\s_-]+/g, "-")
+            .trim("-");
+        // Không cần hiển thị slug cho user
+    }
+
+    const uploadedImages = [];
+    let mainImageUrl = null;
+    let nameCheckTimeout = null;
+    let scientificNameCheckTimeout = null;
+
+    async function checkDuplicate(name, scientificName, validationDivId) {
+        if ((!name || name.trim().length < 2) && (!scientificName || scientificName.trim().length < 2)) {
+            document.getElementById(validationDivId).innerHTML = '';
+            return;
+        }
+
+        try {
+            let url = `/api/plant/public/check-duplicate?`;
+            if (name && name.trim()) url += `name=${encodeURIComponent(name.trim())}&`;
+            if (scientificName && scientificName.trim()) url += `scientificName=${encodeURIComponent(scientificName.trim())}&`;
+            url = url.replace(/[&?]$/, '');
+
+            const response = await fetch(url);
+            if (response.ok) {
+                const data = await response.json();
+                const validationDiv = document.getElementById(validationDivId);
+                
+                if (data.isDuplicate) {
+                    validationDiv.innerHTML = `<small class="text-danger"><i class="bi bi-exclamation-circle"></i> ${data.message}</small>`;
+                    document.getElementById(validationDivId === 'nameValidation' ? 'name' : 'scientificName').classList.add('is-invalid');
+                    document.getElementById(validationDivId === 'nameValidation' ? 'name' : 'scientificName').classList.remove('is-valid');
+                } else {
+                    validationDiv.innerHTML = `<small class="text-success"><i class="bi bi-check-circle"></i> ${data.message}</small>`;
+                    document.getElementById(validationDivId === 'nameValidation' ? 'name' : 'scientificName').classList.add('is-valid');
+                    document.getElementById(validationDivId === 'nameValidation' ? 'name' : 'scientificName').classList.remove('is-invalid');
+                }
+            }
+        } catch (err) {
+            console.error("Error checking duplicate:", err);
+        }
+    }
+
+    document.getElementById("name").addEventListener("input", function(e) {
+        clearTimeout(nameCheckTimeout);
+        const name = e.target.value;
+        nameCheckTimeout = setTimeout(() => {
+            const scientificName = document.getElementById("scientificName").value;
+            checkDuplicate(name, scientificName, 'nameValidation');
+        }, 500);
+    });
+
+    document.getElementById("scientificName").addEventListener("input", function(e) {
+        clearTimeout(scientificNameCheckTimeout);
+        const scientificName = e.target.value;
+        scientificNameCheckTimeout = setTimeout(() => {
+            const name = document.getElementById("name").value;
+            checkDuplicate(name, scientificName, 'scientificNameValidation');
+        }, 500);
+    });
+
+    // Upload ảnh chính
+    document.getElementById("mainImage").addEventListener("change", async function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const formData = new FormData();
+        formData.append("file", file);
+        
+        try {
+            const res = await fetch("/api/public/upload-file", {
+                method: "POST",
+                body: formData
+            });
+            
+            if (res.ok) {
+                mainImageUrl = await res.text();
+                document.getElementById("mainImagePreview").innerHTML = 
+                    `<img src="${mainImageUrl}" class="img-thumbnail" style="max-width: 200px;">`;
+                toastr.success("Tải ảnh chính thành công!");
+            } else {
+                toastr.error("Tải ảnh thất bại!");
+            }
+        } catch (err) {
+            toastr.error("Lỗi kết nối!");
+        }
+    });
+
+    // Upload ảnh phụ
+    document.getElementById("subImages").addEventListener("change", async function(e) {
+        const files = Array.from(e.target.files);
+        if (files.length > 5) {
+            toastr.warning("Chỉ được chọn tối đa 5 ảnh!");
+            return;
+        }
+        
+        const formData = new FormData();
+        files.forEach(f => formData.append("file", f));
+        
+        try {
+            const res = await fetch("/api/public/upload-multiple-file-order-response", {
+                method: "POST",
+                body: formData
+            });
+            
+            if (res.ok) {
+                const data = await res.json();
+                uploadedImages.length = 0;
+                data.forEach(item => {
+                    uploadedImages.push(item.link);
+                });
+                
+                let preview = '';
+                data.forEach((item, idx) => {
+                    preview += `<div class="col-3">
+                        <img src="${item.link}" class="img-thumbnail w-100">
+                    </div>`;
+                });
+                document.getElementById("subImagesPreview").innerHTML = preview;
+                toastr.success(`Đã tải ${data.length} ảnh thành công!`);
+            } else {
+                toastr.error("Tải ảnh thất bại!");
+            }
+        } catch (err) {
+            toastr.error("Lỗi kết nối!");
+        }
+    });
+
+    // Submit form
+    document.getElementById("plantForm").addEventListener("submit", async function(e) {
+        e.preventDefault();
+        
+        const token = localStorage.getItem("token");
+        if (!token) {
+            toastr.error("Vui lòng đăng nhập!");
+            window.location.href = '/login';
+            return;
+        }
+
+        // Đảm bảo familiesId luôn có giá trị (mặc định hoặc người dùng chọn)
+        const familiesSelect = document.getElementById("families");
+        const familiesId = familiesSelect.value ? parseInt(familiesSelect.value) : null;
+        
+        if (!familiesId) {
+            toastr.error("Vui lòng chọn họ thực vật!");
+            return;
+        }
+
+        // Đảm bảo có ít nhất 1 ảnh
+        let allImages = [];
+        if (mainImageUrl) {
+            allImages.push(mainImageUrl);
+        }
+        if (uploadedImages.length > 0) {
+            allImages = allImages.concat(uploadedImages);
+        }
+        
+        if (allImages.length === 0) {
+            toastr.error("Vui lòng upload ít nhất 1 hình ảnh!");
+            return;
+        }
+
+        // Tạo Plant object theo format PlantRequestDto
+        const plant = {
+            name: document.getElementById("name").value.trim(),
+            scientificName: document.getElementById("scientificName").value.trim() || null,
+            partsUsed: document.getElementById("partsUsed").value.trim(),
+            description: document.getElementById("description").value.trim() || null,
+            families: familiesId ? { id: familiesId } : null,
+            image: allImages.length > 0 ? allImages[0] : null
+        };
+
+        const dto = {
+            plant: plant,
+            images: allImages,
+            diseasesIds: $("#diseases").val() ? $("#diseases").val().map(id => parseInt(id)) : []
+        };
+
+        try {
+            const response = await fetch("/api/plant/user/create", {
+                method: "POST",
+                headers: {
+                    "Authorization": "Bearer " + token,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(dto)
+            });
+
+            if (response.ok) {
+                toastr.success("Đã gửi bài đăng thành công! Vui lòng chờ chuyên gia duyệt.");
+                setTimeout(() => {
+                    window.location.href = '/plant';
+                }, 2000);
+            } else {
+                let errorMessage = "Có lỗi xảy ra khi tải lên";
+                try {
+                    const errorText = await response.text();
+                    if (errorText) {
+                        try {
+                            const errorJson = JSON.parse(errorText);
+                            errorMessage = errorJson.message || errorJson.defaultMessage || errorText;
+                        } catch (e) {
+                            errorMessage = errorText;
+                        }
+                    }
+                } catch (e) {
+                    errorMessage = "Lỗi " + response.status + ": " + response.statusText;
+                }
+                toastr.error(errorMessage);
+                console.error("Error response:", response.status, errorMessage);
+            }
+        } catch (err) {
+            toastr.error("Lỗi kết nối!");
+        }
+    });
+</script>
+</body>
+</html>
+
+

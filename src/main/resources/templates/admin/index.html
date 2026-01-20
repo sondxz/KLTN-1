@@ -1,0 +1,237 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Trang chủ</title>
+  <link rel="icon" type="image/png" href="/image/cay.jfif">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="/admin/js/main.js"></script>
+  <link rel="stylesheet" href="/admin/css/styleadmin.css">
+  
+</head>
+<body>
+  <div class="d-flex">
+    <div id="header-admin"></div>
+    <div class="flex-grow-1 d-flex flex-column">
+      <div id="navbar-admin"></div>
+      <main class="main bg-light flex-grow-1">
+        <div class="py-4 px-3 px-sm-4 px-lg-5">
+  <!-- Title -->
+  <div class="mb-4">
+    <h1 class="h4 fw-bold text-dark">Trang chủ</h1>
+    <p class="mt-1 text-muted small">Tổng quan về hệ thống quản lý cây dược liệu</p>
+  </div>
+
+  <!-- Stats -->
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="card-title small mb-0">Tổng số cây dược liệu</h6>
+            <i data-lucide="leaf" class="text-muted"></i>
+          </div>
+          <h3 class="fw-bold mb-0">248</h3>
+          <p class="small text-muted mt-1 d-flex align-items-center">
+            <i data-lucide="trending-up" class="me-1 text-success" style="width:14px;height:14px;"></i>
+            <span class="text-success fw-medium">+12%</span> so với tháng trước
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="card-title small mb-0">Tổng số bài viết</h6>
+            <i data-lucide="file-text" class="text-muted"></i>
+          </div>
+          <h3 class="fw-bold mb-0">156</h3>
+          <p class="small text-muted mt-1 d-flex align-items-center">
+            <i data-lucide="trending-up" class="me-1 text-success" style="width:14px;height:14px;"></i>
+            <span class="text-success fw-medium">+8%</span> so với tháng trước
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="card-title small mb-0">Tổng số nghiên cứu</h6>
+            <i data-lucide="book-open" class="text-muted"></i>
+          </div>
+          <h3 class="fw-bold mb-0">87</h3>
+          <p class="small text-muted mt-1 d-flex align-items-center">
+            <i data-lucide="trending-up" class="me-1 text-success" style="width:14px;height:14px;"></i>
+            <span class="text-success fw-medium">+5%</span> so với tháng trước
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="card-title small mb-0">Tổng số người dùng</h6>
+            <i data-lucide="users" class="text-muted"></i>
+          </div>
+          <h3 class="fw-bold mb-0">1,248</h3>
+          <p class="small text-muted mt-1 d-flex align-items-center">
+            <i data-lucide="trending-up" class="me-1 text-success" style="width:14px;height:14px;"></i>
+            <span class="text-success fw-medium">+18%</span> so với tháng trước
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Activity and Recent Items -->
+  <div class="row g-4">
+    <!-- Recent Activity -->
+    <div class="col-12 col-lg-4">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title mb-1">Hoạt động gần đây</h5>
+          <p class="text-muted small mb-3">Các hoạt động mới nhất trong hệ thống</p>
+
+          <div class="d-flex mb-3">
+            <i data-lucide="file-up" class="text-primary me-3"></i>
+            <div>
+              <p class="mb-0 small fw-bold">Thêm cây dược liệu mới</p>
+              <p class="text-muted small mb-0">Admin đã thêm "Cây Atiso"</p>
+              <small class="text-secondary">2 giờ trước</small>
+            </div>
+          </div>
+
+          <div class="d-flex mb-3">
+            <i data-lucide="user-plus" class="text-success me-3"></i>
+            <div>
+              <p class="mb-0 small fw-bold">Người dùng mới đăng ký</p>
+              <p class="text-muted small mb-0">Nguyễn Văn A đã đăng ký</p>
+              <small class="text-secondary">4 giờ trước</small>
+            </div>
+          </div>
+
+          <div class="d-flex mb-3">
+            <i data-lucide="file-up" class="text-purple me-3"></i>
+            <div>
+              <p class="mb-0 small fw-bold">Thêm bài viết mới</p>
+              <p class="text-muted small mb-0">Admin đã thêm bài viết "Công dụng của cây Atiso"</p>
+              <small class="text-secondary">6 giờ trước</small>
+            </div>
+          </div>
+
+          <div class="d-flex mb-3">
+            <i data-lucide="file-up" class="text-warning me-3"></i>
+            <div>
+              <p class="mb-0 small fw-bold">Cập nhật thông tin cây</p>
+              <p class="text-muted small mb-0">Admin đã cập nhật "Cây Đinh Lăng"</p>
+              <small class="text-secondary">8 giờ trước</small>
+            </div>
+          </div>
+
+          <div class="d-flex">
+            <i data-lucide="user-plus" class="text-success me-3"></i>
+            <div>
+              <p class="mb-0 small fw-bold">Người dùng mới đăng ký</p>
+              <p class="text-muted small mb-0">Trần Thị B đã đăng ký</p>
+              <small class="text-secondary">10 giờ trước</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Plants -->
+    <div class="col-12 col-lg-4">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title mb-1">Cây dược liệu mới thêm</h5>
+          <p class="text-muted small mb-3">Các cây dược liệu mới được thêm</p>
+
+          <div class="d-flex align-items-center mb-3">
+            <div class="me-3 flex-shrink-0" style="width:40px;height:40px;overflow:hidden;">
+              <img src="/placeholder.svg?height=40&width=40&text=Cây+1" class="img-fluid rounded" alt="Cây 1">
+            </div>
+            <div class="flex-grow-1">
+              <p class="mb-0 small fw-bold">Cây dược liệu 1</p>
+              <p class="text-muted small mb-0">Thêm 1 ngày trước</p>
+            </div>
+            <a href="/admin/plants/1" class="ms-2 text-secondary">
+              <i data-lucide="eye"></i>
+            </a>
+          </div>
+
+          <!-- Lặp lại 5 cây -->
+          <!-- Bạn có thể copy thêm block trên cho 2,3,4,5 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="col-12 col-lg-4">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title mb-1">Thống kê truy cập</h5>
+          <p class="text-muted small mb-3">Số liệu trong 7 ngày qua</p>
+
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <p class="mb-1 small fw-bold">Tổng lượt truy cập</p>
+              <h4 class="mb-0 fw-bold">8,642</h4>
+            </div>
+            <span class="text-success d-flex align-items-center">
+              <i data-lucide="arrow-up-right" class="me-1"></i>12%
+            </span>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <p class="mb-1 small fw-bold">Người dùng mới</p>
+              <h4 class="mb-0 fw-bold">1,254</h4>
+            </div>
+            <span class="text-success d-flex align-items-center">
+              <i data-lucide="arrow-up-right" class="me-1"></i>18%
+            </span>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <p class="mb-1 small fw-bold">Tỷ lệ thoát</p>
+              <h4 class="mb-0 fw-bold">42%</h4>
+            </div>
+            <span class="text-danger d-flex align-items-center">
+              <i data-lucide="arrow-down-right" class="me-1"></i>3%
+            </span>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <p class="mb-1 small fw-bold">Thời gian trung bình</p>
+              <h4 class="mb-0 fw-bold">3:24</h4>
+            </div>
+            <span class="text-success d-flex align-items-center">
+              <i data-lucide="arrow-up-right" class="me-1"></i>8%
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+      </main>
+    </div>
+  </div>
+</body>
+</html>
+
+

@@ -1,0 +1,123 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DuocLieuVN - Đăng ký</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/sweetalert/1.1.3/sweetalert.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert/1.1.3/sweetalert.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/2.0.2/js/toastr.min.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="/js/main.js"></script>
+    <script src="/js/account.js"></script>
+</head>
+<body>
+<header id="header-main"></header>
+<div class="d-flex min-vh-100 align-items-center justify-content-center bg-success bg-opacity-10 py-5 px-3">
+  <div class="card shadow-lg border-success border-opacity-25" style="max-width: 480px; width: 100%;">
+    <div class="card-header bg-white text-center border-0 pb-0">
+      <div class="d-flex justify-content-center mb-3">
+        <div class="rounded-circle bg-success d-flex align-items-center justify-content-center"
+             style="width: 48px; height: 48px;">
+          <span class="text-white fw-bold fs-5">DL</span>
+        </div>
+      </div>
+      <h2 class="card-title h4 fw-bold text-success mb-1">Đăng ký tài khoản</h2>
+      <p class="card-subtitle text-muted small">
+        Nhập thông tin để tạo tài khoản mới cho hệ thống cây dược liệu
+      </p>
+    </div>
+
+    <form class="card-body" action="javascript:regis()">
+      <!-- Họ và tên -->
+      <div class="mb-3">
+        <label for="fullName" class="form-label text-success">Họ và tên</label>
+        <input type="text" class="form-control border-success" id="fullname" placeholder="Nhập họ và tên" required>
+      </div>
+
+      <!-- Email -->
+      <div class="mb-3">
+        <label for="email" class="form-label text-success">Email</label>
+        <input type="email" class="form-control border-success" id="email" placeholder="name@example.com" required>
+      </div>
+
+      <div class="mb-3">
+        <label for="email" class="form-label text-success">Số điện thoại</label>
+        <input class="form-control border-success" id="phone" required>
+      </div>
+
+      <!-- Mật khẩu -->
+      <div class="mb-3">
+        <label for="password" class="form-label text-success">Mật khẩu</label>
+        <div class="input-group">
+          <input type="password" class="form-control border-success" id="password" placeholder="Nhập mật khẩu" required>
+          <button type="button" id="togglePassword" class="btn btn-outline-success">
+            <i class="bi bi-eye" id="toggleIcon"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Xác nhận mật khẩu -->
+      <div class="mb-3">
+        <label for="passwordConfirm" class="form-label text-success">Xác nhận mật khẩu</label>
+        <div class="input-group">
+          <input type="password" class="form-control border-success" id="passwordConfirm" placeholder="Nhập lại mật khẩu" required>
+          <button type="button" id="toggleConfirmPassword" class="btn btn-outline-success">
+            <i class="bi bi-eye" id="toggleConfirmIcon"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <div class="alert alert-danger alert-dismissible fade show mt-3" role="alert" id="error-section">
+          <span id="errormess">Lỗi xảy ra</span>
+      </div>
+      <button type="submit" class="btn btn-success w-100">Đăng ký</button>
+    </form>
+
+    <div class="card-footer bg-white text-center border-0 pt-3">
+      <small class="text-success">
+        Đã có tài khoản?
+        <a href="/login" class="text-success fw-semibold text-decoration-none">Đăng nhập</a>
+      </small>
+    </div>
+  </div>
+</div>
+
+<footer class="pt-5" id="footer-main"></footer>
+</body>
+<script>
+  // Toggle mật khẩu
+  document.getElementById("togglePassword").addEventListener("click", function () {
+    const input = document.getElementById("password");
+    const icon = document.getElementById("toggleIcon");
+    if (input.type === "password") {
+      input.type = "text";
+      icon.classList.replace("bi-eye", "bi-eye-slash");
+    } else {
+      input.type = "password";
+      icon.classList.replace("bi-eye-slash", "bi-eye");
+    }
+  });
+
+  // Toggle xác nhận mật khẩu
+  document.getElementById("toggleConfirmPassword").addEventListener("click", function () {
+    const input = document.getElementById("passwordConfirm");
+    const icon = document.getElementById("toggleConfirmIcon");
+    if (input.type === "password") {
+      input.type = "text";
+      icon.classList.replace("bi-eye", "bi-eye-slash");
+    } else {
+      input.type = "password";
+      icon.classList.replace("bi-eye-slash", "bi-eye");
+    }
+  });
+</script>
+</html>
+
+

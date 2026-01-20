@@ -1,0 +1,319 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Thêm chuyên gia</title>
+  <link rel="icon" type="image/png" href="/image/cay.jfif">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/sweetalert/1.1.3/sweetalert.css" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert/1.1.3/sweetalert.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/2.0.2/js/toastr.min.js"></script>
+  <link rel="stylesheet" href="/admin/css/styleadmin.css">
+  <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+  <script src="/admin/js/main.js"></script>
+  <script src="/admin/js/expert.js"></script>
+  <script>
+    window.onload = async function() {
+      loadAExpert();
+    }
+  </script>
+</head>
+<body>
+<div class="d-flex">
+  <div id="header-admin"></div>
+  <div class="flex-grow-1 d-flex flex-column">
+    <div id="navbar-admin"></div>
+    <main class="main bg-light flex-grow-1">
+      <div class="container py-4">
+        <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between mb-4 px-3">
+          <div>
+            <h1 class="h4 fw-bold text-dark mb-1">Thêm chuyên gia</h1>
+            <p class="text-muted small mb-0">Nhập thông tin chi tiết và tiểu sử của chuyên gia</p>
+          </div>
+          <div class="mt-3 mt-sm-0">
+            <button onclick="saveExpert()" id="btnSave" class="btn btn-success d-flex align-items-center gap-1">
+              <i data-lucide="save"></i>
+              <span>Lưu chuyên gia</span>
+            </button>
+          </div>
+        </div>
+        <div id="expertForm">
+          <ul class="nav nav-tabs" id="expertTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info" type="button" role="tab">
+                Thông tin cơ bản
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="bio-tab" data-bs-toggle="tab" data-bs-target="#bio" type="button" role="tab">
+                Tiểu sử & Thành tựu
+              </button>
+            </li>
+          </ul>
+          <div class="tab-content mt-3" id="expertTabsContent">
+
+            <div class="tab-pane fade show active" id="info" role="tabpanel">
+              <div class="row g-4">
+                <div class="col-lg-8">
+                  <div class="card">
+                    <div class="card-header">
+                      <h5 class="mb-0">Thông tin cá nhân</h5>
+                    </div>
+                    <div class="card-body">
+                      <div class="mb-3">
+                        <label for="expertName" class="form-label">Họ và Tên (*)</label>
+                        <input onkeyup="createSlug(this.value)" type="text" class="form-control" id="expertName" placeholder="Nhập họ và tên chuyên gia">
+                      </div>
+                      <div class="mb-3">
+                        <label for="slug" class="form-label">Slug (*)</label>
+                        <input type="text" class="form-control" id="slug" placeholder="Slug (đường dẫn)">
+                      </div>
+                      <div class="mb-3">
+                        <label for="expertTitle" class="form-label">Chức danh/Vị trí</label>
+                        <input type="text" class="form-control" id="expertTitle" placeholder="Ví dụ: Bác sĩ, Tiến sĩ Y khoa, Dược sĩ">
+                      </div>
+                      <div class="mb-3">
+                        <label for="specialization" class="form-label">Chuyên môn (*)</label>
+                        <select class="form-select" id="specialization" required>
+                          <option value="">-- Chọn chuyên môn --</option>
+                          <option value="Da liễu">Da liễu</option>
+                          <option value="Tim mạch">Tim mạch</option>
+                          <option value="Dinh dưỡng">Dinh dưỡng</option>
+                          <option value="Nội khoa">Nội khoa</option>
+                          <option value="Ngoại khoa">Ngoại khoa</option>
+                          <option value="Sản phụ khoa">Sản phụ khoa</option>
+                          <option value="Nhi khoa">Nhi khoa</option>
+                          <option value="Y học cổ truyền">Y học cổ truyền</option>
+                          <option value="Dược lý học">Dược lý học</option>
+                          <option value="Hóa dược">Hóa dược</option>
+                          <option value="Dược liệu học">Dược liệu học</option>
+                          <option value="Thực vật học">Thực vật học</option>
+                          <option value="Đông y">Đông y</option>
+                          <option value="Nam y">Nam y</option>
+                          <option value="Ung bướu">Ung bướu</option>
+                          <option value="Thần kinh">Thần kinh</option>
+                          <option value="Tâm thần">Tâm thần</option>
+                          <option value="Mắt">Mắt</option>
+                          <option value="Tai mũi họng">Tai mũi họng</option>
+                          <option value="Răng hàm mặt">Răng hàm mặt</option>
+                          <option value="Xương khớp">Xương khớp</option>
+                          <option value="Vật lý trị liệu">Vật lý trị liệu</option>
+                          <option value="Phục hồi chức năng">Phục hồi chức năng</option>
+                          <option value="Y tế công cộng">Y tế công cộng</option>
+                          <option value="Dịch tễ học">Dịch tễ học</option>
+                          <option value="Vi sinh y học">Vi sinh y học</option>
+                          <option value="Giải phẫu bệnh">Giải phẫu bệnh</option>
+                          <option value="Huyết học">Huyết học</option>
+                          <option value="Miễn dịch học">Miễn dịch học</option>
+                          <option value="Sinh lý học">Sinh lý học</option>
+                          <option value="Giải phẫu học">Giải phẫu học</option>
+                          <option value="Khác">Khác</option>
+                        </select>
+                        <small class="text-muted">Chọn chuyên môn chính của chuyên gia</small>
+                      </div>
+                      <div class="mb-3">
+                        <label for="institution" class="form-label">Cơ quan/Tổ chức công tác</label>
+                        <input type="text" class="form-control" id="institution" placeholder="Ví dụ: Bệnh viện Bạch Mai, Đại học Y Hà Nội">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-lg-4">
+                  <div class="card mb-4">
+                    <div class="card-header">
+                      <h6 class="mb-0">Ảnh đại diện (Avatar)</h6>
+                    </div>
+                    <div class="card-body text-center">
+                      <div id="previewWrapper" class="border bg-light rounded mb-3 p-3 d-flex align-items-center justify-content-center" style="aspect-ratio: 1/1; max-width: 200px; margin: 0 auto;">
+                        <span class="text-muted">Chưa có ảnh</span>
+                      </div>
+                      <input type="file" id="featuredImage" class="form-control mb-2">
+                      <button type="button" class="btn btn-outline-danger btn-sm w-100" id="removeImage" disabled>
+                        <i data-lucide="x"></i> Xóa ảnh
+                      </button>
+                      <small class="text-muted mt-2 d-block">Ảnh sẽ được lưu vào biến `window.uploadedImageBanner`</small>
+                    </div>
+                  </div>
+
+                  <div class="card">
+                    <div class="card-header">
+                      <h6 class="mb-0">Thông tin Liên hệ & Tài khoản</h6>
+                    </div>
+                    <div class="card-body">
+                      <div class="mb-3">
+                        <label for="expertEmail" class="form-label">Email cá nhân <span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" id="expertEmail" placeholder="Email riêng" required>
+                        <small class="text-muted">Email này sẽ dùng làm tên đăng nhập</small>
+                      </div>
+                      <div class="mb-3">
+                        <label for="contactEmail" class="form-label">Email liên hệ (Công khai)</label>
+                        <input type="email" class="form-control" id="contactEmail" placeholder="Email dùng để liên hệ">
+                      </div>
+                      <div class="mb-3">
+                        <label for="expertPhone" class="form-label">Số điện thoại</label>
+                        <input type="text" class="form-control" id="expertPhone" placeholder="Số điện thoại">
+                      </div>
+                      <div class="mb-3">
+                        <label for="expertPassword" class="form-label">Mật khẩu <span class="text-danger" id="passwordRequired">*</span></label>
+                        <input type="password" class="form-control" id="expertPassword" placeholder="Nhập mật khẩu cho tài khoản chuyên gia" minlength="6">
+                        <small class="text-muted" id="passwordHint">Tối thiểu 6 ký tự. Bắt buộc khi tạo mới, để trống nếu không đổi khi sửa.</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="tab-pane fade" id="bio" role="tabpanel">
+              <div class="card">
+                <div class="card-header">
+                  <h5 class="mb-0">Tiểu sử, Học vấn và Thành tựu</h5>
+                </div>
+                <div class="card-body">
+                  <div class="mb-4">
+                    <label for="educationEditor" class="form-label">Quá trình Học vấn và Đào tạo</label>
+                    <div id="educationEditor" style="height: 220px;"></div>
+                  </div>
+                  <div class="mb-4">
+                    <label for="bioEditor" class="form-label">Tiểu sử/Kinh nghiệm làm việc</label>
+                    <div id="bioEditor" style="height: 220px;"></div>
+                  </div>
+                  <div class="mb-4">
+                    <label for="achievementsEditor" class="form-label">Thành tựu và Giải thưởng</label>
+                    <div id="achievementsEditor" style="height: 220px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<script>
+  // Chuyển toàn bộ logic upload, drag/drop, paste image và remove image
+  // từ file gốc sang áp dụng cho Avatar.
+  $(document).ready(function () {
+    const dropZone = document.getElementById("previewWrapper");
+    const fileInput = document.getElementById("featuredImage");
+    const btnSave = $("#btnSave");
+
+    async function uploadImage(file) {
+      if (!file || !file.type.startsWith("image/")) {
+        toastr.warning("Vui lòng chọn tệp ảnh hợp lệ!");
+        return;
+      }
+
+      btnSave.prop("disabled", true).text("Đang tải ảnh... ⏳");
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const res = await fetch("/api/public/upload-file", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (res.ok) {
+          const imageUrl = await res.text();
+          // Lưu URL ảnh vào biến global để sử dụng khi lưu form
+          window.uploadedExpertAvatar = imageUrl;
+          dropZone.innerHTML = `<img src="${imageUrl}" class="img-fluid rounded" style="object-fit: cover; width: 100%; height: 100%;" />`;
+          toastr.success("Tải ảnh đại diện thành công!");
+          $("#removeImage").prop("disabled", false);
+        } else {
+          toastr.error("Tải ảnh thất bại!");
+        }
+      } catch (err) {
+        console.error("❌ Upload ảnh lỗi:", err);
+        toastr.error("Không thể kết nối đến server upload!");
+      } finally {
+        btnSave.prop("disabled", false).text("Lưu chuyên gia");
+      }
+    }
+
+    function handleFile(file) {
+      if (file) {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        fileInput.files = dt.files;
+        uploadImage(file);
+      }
+    }
+
+    // ========== DRAG & DROP ==========
+    // Giữ nguyên logic drag/drop
+    ["dragenter", "dragover", "dragleave", "drop"].forEach(evt =>
+            dropZone.addEventListener(evt, e => e.preventDefault())
+    );
+    ["dragenter", "dragover"].forEach(evt =>
+            dropZone.addEventListener(evt, () => dropZone.classList.add("border-primary"))
+    );
+    ["dragleave", "drop"].forEach(evt =>
+            dropZone.addEventListener(evt, () => dropZone.classList.remove("border-primary"))
+    );
+    dropZone.addEventListener("drop", e => {
+      const file = e.dataTransfer.files[0];
+      handleFile(file);
+    });
+
+    // ========== CLICK TO OPEN FILE ==========
+    dropZone.addEventListener("click", () => fileInput.click());
+
+    // ========== INPUT CHANGE ==========
+    fileInput.addEventListener("change", function () {
+      const file = this.files[0];
+      handleFile(file);
+    });
+
+    // ========== PASTE IMAGE ==========
+    document.addEventListener("paste", e => {
+      if (!e.clipboardData) return;
+      const items = e.clipboardData.items;
+      for (const item of items) {
+        if (item.type.indexOf("image") !== -1) {
+          const file = item.getAsFile();
+          handleFile(file);
+          break;
+        }
+      }
+    });
+
+    // ========== REMOVE IMAGE ==========
+    $("#removeImage").on("click", function () {
+      window.uploadedExpertAvatar = null;
+      dropZone.innerHTML = `<span class="text-muted">Chưa có ảnh</span>`;
+      $(this).prop("disabled", true);
+    });
+  });
+</script>
+
+<script>
+  // Hàm tạo slug được giữ nguyên
+  function createSlug(name) {
+    let slug = name.toLowerCase()
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9\s-]/g, "")
+            .replace(/[\s_-]+/g, "-")
+            .trim("-");
+    document.getElementById("slug").value = slug;
+  }
+
+  /**
+   * HÀM XỬ LÝ LƯU CHUYÊN GIA (Cần được định nghĩa trong /admin/js/expert.js hoặc đây)
+   */
+
+</script>
+</html>

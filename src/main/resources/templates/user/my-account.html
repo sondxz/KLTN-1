@@ -1,0 +1,117 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DuocLieuVN - Tài khoản của tôi</title>
+    <link rel="icon" type="image/png" href="/image/cay.jfif">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/2.0.2/js/toastr.min.js"></script>
+    <script src="/js/main.js"></script>
+</head>
+<body>
+<header id="header-main"></header>
+
+<div class="container py-4">
+  <!-- Header -->
+  <div class="mb-4 d-flex flex-column flex-sm-row justify-content-between">
+    <div>
+      <h1 class="h3 fw-bold">Thông tin cá nhân</h1>
+      <p class="text-muted">Xem và cập nhật thông tin tài khoản của bạn</p>
+    </div>
+  </div>
+
+  <div class="tab-content">
+    <!-- Tab Thông tin cá nhân -->
+    <div class="tab-pane fade show active" id="profile" role="tabpanel">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header">
+          <h5 class="card-title mb-0">Thông tin tài khoản</h5>
+          <small class="text-muted">Cập nhật thông tin cá nhân của bạn</small>
+        </div>
+        <div class="card-body">
+          <form id="editForm" action="javascript:updateProfile()">
+            <div class="row g-3 mb-4">
+              <div class="col-md-6">
+                <label class="form-label">Tên đăng nhập</label>
+                <input type="text" class="form-control" id="editUsername" disabled>
+                <small class="text-muted">Tên đăng nhập không thể thay đổi</small>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-control" id="editEmail" disabled>
+                <small class="text-muted">Liên hệ quản trị viên để thay đổi email</small>
+              </div>
+              <div class="col-md-12">
+                <label class="form-label">Họ và tên <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="editFullname" placeholder="Nhập họ tên đầy đủ" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Số điện thoại</label>
+                <input type="tel" class="form-control" id="editPhone" placeholder="Nhập số điện thoại" maxlength="10">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Địa chỉ</label>
+                <input type="text" class="form-control" id="editAddress" placeholder="Nhập địa chỉ">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Vai trò</label>
+                <input type="text" class="form-control" id="viewRole" disabled>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Trạng thái</label>
+                <input type="text" class="form-control" id="viewStatus" disabled>
+              </div>
+              <div class="col-12">
+                <hr>
+                <h6 class="mb-3">Đổi mật khẩu (tùy chọn)</h6>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label">Mật khẩu mới</label>
+                    <input type="password" class="form-control" id="editNewPassword" placeholder="Để trống nếu không đổi mật khẩu" minlength="6">
+                    <small class="text-muted">Tối thiểu 6 ký tự</small>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Xác nhận mật khẩu mới</label>
+                    <input type="password" class="form-control" id="editConfirmPassword" placeholder="Nhập lại mật khẩu mới">
+                  </div>
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Mật khẩu hiện tại <span class="text-danger">*</span></label>
+                <input type="password" class="form-control" id="editOldPassword" placeholder="Nhập mật khẩu hiện tại để xác nhận" required>
+                <small class="text-muted">Bắt buộc nhập để xác nhận thay đổi</small>
+              </div>
+            </div>
+            <div class="d-flex justify-content-end gap-2">
+              <button type="button" class="btn btn-secondary" onclick="resetForm()">
+                <i class="bi bi-arrow-counterclockwise"></i> Hủy
+              </button>
+              <button type="submit" class="btn btn-success" id="submitBtn">
+                <i class="bi bi-save"></i> Lưu thay đổi
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+
+
+<footer class="pt-5" id="footer-main"></footer>
+<script src="/js/my-account.js"></script>
+</body>
+</html>
+
+
+
+

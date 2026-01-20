@@ -1,0 +1,408 @@
+ body {
+      background-color: #f3f4f6; /* bg-gray-100 */
+    }
+    .sidebar {
+      width: 260px;
+      min-height: 100vh;
+      border-right: 1px solid #e5e7eb; /* border-gray-200 */
+      background: #fff;
+    }
+    .sidebar .nav-link {
+      display: flex;
+      align-items: center;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: 0.375rem;
+      padding: 0.75rem;
+      color: #374151; /* text-gray-700 */
+    }
+    .sidebar .nav-link.active {
+      background: #ecfdf5; /* bg-green-50 */
+      color: #047857; /* text-green-700 */
+    }
+    .sidebar .nav-link:hover {
+      background: #f9fafb; /* hover:bg-gray-50 */
+    }
+    .brand {
+      font-size: 20px;
+      font-weight: bold;
+      color: #065f46;
+    }
+    .brand-circle {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #059669; /* bg-green-600 */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: bold;
+    }
+    .topbar {
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .search-box {
+      position: relative;
+      max-width: 260px;
+    }
+    .search-box input {
+      padding-left: 2.5rem;
+      border-radius: 0.375rem;
+      border: 1px solid #d1d5db;
+    }
+    .search-box .icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #9ca3af;
+    }
+    .main {
+      padding: 1rem;
+    }
+    .submenu .nav-link {
+      font-size: 13px;
+      padding-left: 2.5rem;
+      color: #4b5563; /* text-gray-600 */
+    }
+    .submenu .nav-link:hover {
+      background: #f9fafb;
+    }
+/* Custom CSS for the table */
+
+/* Cài đặt chung cho bảng */
+.custom-table {
+    border-collapse: separate;
+    border-spacing: 0 0.5rem; /* Khoảng cách giữa các hàng (tùy chọn) */
+    width: 100%;
+    /* Bỏ border mặc định của Bootstrap cho header và cell để tùy chỉnh */
+}
+
+.custom-table thead th {
+    font-weight: bold;
+    color: #6c757d; /* Màu chữ tiêu đề */
+    border-bottom: 2px solid #dee2e6; /* Đường kẻ dưới tiêu đề */
+    border-top: none;
+    padding-bottom: 0.75rem;
+    padding-top: 0.75rem;
+    white-space: nowrap; /* Ngăn tiêu đề bị xuống dòng */
+}
+
+/* Kiểu dáng cho từng hàng */
+.custom-table tbody tr {
+    background-color: #fff;
+    border: 1px solid #e9ecef; /* Border nhẹ xung quanh hàng */
+    border-radius: 8px; /* Bo tròn góc cho hàng (cần thêm box-shadow để thấy rõ) */
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.05); /* Shadow nhẹ cho hàng */
+}
+
+/* Trạng thái "Đã xuất bản" */
+.status-published {
+    background-color: #d4edda !important; /* Màu nền xanh nhạt */
+    color: #155724 !important; /* Màu chữ xanh đậm */
+    padding: 0.5em 0.75em;
+    font-weight: 600;
+    border-radius: 12px;
+}
+
+/* Nhóm nút Thao tác */
+.actions {
+    display: flex;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+.action-btn {
+    border: none;
+    background: none;
+    padding: 0.25rem;
+    line-height: 1; /* Căn chỉnh icon */
+    font-size: 1rem;
+    transition: color 0.2s;
+}
+
+/* Tùy chỉnh màu sắc icon (Gần giống với hình ảnh) */
+.view-btn {
+    color: #0d6efd; /* Xanh dương */
+}
+.edit-btn {
+    color: #ffc107; /* Vàng */
+}
+.delete-btn {
+    color: #dc3545; /* Đỏ */
+}
+.more-btn {
+    color: #6c757d; /* Xám */
+}
+
+.action-btn:hover {
+    opacity: 0.7;
+}
+
+/* Căn chỉnh nội dung trong các ô */
+.custom-table td {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    border-top: none; /* Loại bỏ đường kẻ ngang giữa các cell */
+}
+
+/* Đảm bảo căn giữa cho các cột như ID, Lượt xem */
+.custom-table tbody tr td:nth-child(1), /* ID */
+.custom-table tbody tr td:nth-child(5) /* Lượt xem */
+{
+    text-align: center;
+}
+.badge-admin {
+    background-color: #f8d7da; /* Màu nền đỏ nhạt cho Quản trị viên */
+    color: #842029; /* Màu chữ đỏ đậm */
+}
+.badge-editor {
+    background-color: #d1e7dd; /* Màu nền xanh lá nhạt cho Biên tập viên */
+    color: #0f5132; /* Màu chữ xanh lá đậm */
+}
+.badge-expert {
+    background-color: #f8d7da; /* Màu nền đỏ nhạt cho Chuyên gia */
+    color: #842029; /* Màu chữ đỏ đậm */
+}
+.badge-active {
+    background-color: #d1e7dd; /* Màu nền xanh lá nhạt cho Hoạt động */
+    color: #0f5132; /* Màu chữ xanh lá đậm */
+}
+.badge-inactive {
+    background-color: #842029; /* Màu nền xanh lá nhạt cho Hoạt động */
+    color: #fff; /* Màu chữ xanh lá đậm */
+}
+
+.create-user-card {
+    max-width: 700px;
+    margin: 50px auto;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    background-color: #fff;
+}
+.create-user-header h3 {
+    font-weight: 600;
+    color: #333;
+}
+.create-user-header p {
+    color: #6c757d;
+    margin-bottom: 25px;
+}
+.create-user-label {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 5px;
+    display: block; /* Đảm bảo label chiếm hết chiều rộng để căn chỉnh với input */
+}
+.create-user-input, .create-user-select {
+    height: 48px; /* Chiều cao lớn hơn cho input */
+    border-radius: 8px;
+    border: 1px solid #ced4da;
+    padding: 10px 15px;
+}
+.create-user-form-text {
+    font-size: 0.85em;
+    color: #6c757d;
+    margin-top: 5px;
+}
+.create-user-btn-primary {
+    background-color: #343a40; /* Nút đen */
+    border-color: #343a40;
+    color: #fff;
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+}
+.create-user-btn-primary:hover {
+    background-color: #23272b;
+    border-color: #23272b;
+    color: #fff;
+}
+.create-user-btn-secondary {
+    color: #6c757d;
+    background-color: transparent;
+    border: none;
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: 8px;
+}
+
+.add-utility-header {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 30px;
+}
+.add-utility-label {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 5px;
+    display: block;
+}
+.add-utility-input {
+    height: 45px; /* Chiều cao vừa phải cho input */
+    border-radius: 4px;
+}
+.add-utility-textarea {
+    border-radius: 4px;
+    resize: vertical; /* Cho phép thay đổi kích thước theo chiều dọc */
+}
+/* Nút Thêm (Màu đen) */
+.add-utility-btn-primary {
+    background-color: #343a40; 
+    border-color: #343a40;
+    color: #fff;
+    font-weight: 500;
+    padding: 8px 20px;
+    border-radius: 4px;
+    margin-right: 10px;
+}
+.add-utility-btn-primary:hover {
+    background-color: #23272b;
+    border-color: #23272b;
+    color: #fff;
+}
+/* Nút Hủy (Màu trắng, viền xám) */
+.add-utility-btn-secondary {
+    background-color: #fff;
+    border: 1px solid #ced4da;
+    color: #343a40;
+    font-weight: 500;
+    padding: 8px 20px;
+    border-radius: 4px;
+}
+.add-utility-btn-secondary:hover {
+    background-color: #f8f9fa;
+}
+
+.checkbox-custom {
+    display: block;
+    position: relative;
+    padding-left: 35px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    font-size: 16px;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+
+/* Hide the browser's default checkbox */
+
+.checkbox-custom input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+}
+
+
+/* Create a custom checkbox */
+
+.checkmark-checkbox {
+    position: absolute;
+    /* top: 0; */
+    left: 0;
+    height: 25px;
+    width: 25px;
+    background-color: #8a8a8a;
+}
+
+
+/* On mouse-over, add a grey background color */
+
+.checkbox-custom:hover input~.checkmark-checkbox {
+    background-color: #ccc;
+}
+
+
+/* When the checkbox is checked, add a blue background */
+
+.checkbox-custom input:checked~.checkmark-checkbox {
+    background-color: #2196F3;
+}
+
+
+/* Create the checkmark/indicator (hidden when not checked) */
+
+.checkmark-checkbox:after {
+    content: "";
+    position: absolute;
+    display: none;
+}
+
+
+/* Show the checkmark when checked */
+
+.checkbox-custom input:checked~.checkmark-checkbox:after {
+    display: block;
+}
+
+
+/* Style the checkmark/indicator */
+
+.checkbox-custom .checkmark-checkbox:after {
+    left: 9px;
+    top: 5px;
+    width: 5px;
+    height: 10px;
+    border: solid white;
+    border-width: 0 3px 3px 0;
+    -webkit-transform: rotate(45deg);
+    -ms-transform: rotate(45deg);
+    transform: rotate(45deg);
+}
+
+.checkbox-custom {
+    display: inline-block;
+    /* margin-left: 15px; */
+}
+.img-icon{
+    width: 40px;
+}
+.display-none{
+    display: none;
+}
+.img-table{
+    width: 100px;
+    border-radius: 8px;
+}
+#previewWrapper.border-primary {
+  border: 2px dashed #007bff !important;
+  background-color: #e9f5ff;
+}
+
+.choose-image {
+    width: 100%;
+    height: 300px;
+    background-color: #f4f4f4;
+    border: 3px dotted #fe9900;
+    cursor: pointer;
+}
+
+.choose-image p {
+    margin: auto;
+    text-align: center;
+}
+
+#camera {
+    margin-top: 40px;
+    font-size: 20px;
+    color: #fe9900;
+}
+
+.upload-submit {
+    width: 100%;
+}
+.image-upload{
+    object-fit: cover;
+}
+.pointer{
+    cursor: pointer;
+}

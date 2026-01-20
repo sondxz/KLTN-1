@@ -1,0 +1,41 @@
+package com.web.service;
+
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.JsonFactory;
+import com.google.api.client.json.jackson2.JacksonFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.util.Collections;
+
+@Service
+public class GoogleOAuth2Service {
+
+    private static final Logger logger = LoggerFactory.getLogger(GoogleOAuth2Service.class);
+
+
+    public GoogleIdToken.Payload verifyToken(String idTokenString) {
+
+        try {
+            JsonFactory jsonFactory = JacksonFactory.getDefaultInstance();
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), jsonFactory)
+                    .setAudience(Collections.singletonList("834953369269-lf215u19i6mud1fb6oqp1ab3o6q8osl4.apps.googleusercontent.com"))
+                    .build();
+            GoogleIdToken idToken = verifier.verify(idTokenString);
+            if (idToken != null) {
+                GoogleIdToken.Payload payload = idToken.getPayload();
+                return payload;
+            } else {
+                return null;
+            }
+        } catch (GeneralSecurityException | IOException e) {
+            logger.error("Error verifying Google token", e);
+            return null;
+        }
+    }
+}

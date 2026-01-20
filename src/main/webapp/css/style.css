@@ -1,0 +1,814 @@
+body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+    header.navbar { box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+    .navbar-brand span { font-weight: 600; font-size: 1.25rem; color: #065f46; }
+    .logo-circle {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+      color: #fff;
+      font-weight: 600;
+      display:flex;align-items:center;justify-content:center;
+      margin-right: .5rem;
+      box-shadow: 0 2px 4px rgba(22, 163, 74, 0.2);
+    }
+    .btn-custom-login {
+      border:1px solid #dee2e6;
+      border-radius: .375rem;
+      display:flex;align-items:center;gap:.4rem;
+      transition: all 0.2s ease;
+    }
+    .btn-custom-login:hover {
+      background-color: #f8f9fa;
+      border-color: #adb5bd;
+    }
+    .btn-custom-register {
+      background:#16a34a;
+      color:#fff;
+      border-radius:.375rem;
+      display:flex;align-items:center;gap:.4rem;
+      transition: all 0.2s ease;
+      border: none;
+    }
+    .btn-custom-register:hover { 
+      background:#15803d; 
+      color:#fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(22, 163, 74, 0.2);
+    }
+    
+    /* Hero Section */
+    .hero-section {
+      background: linear-gradient(135deg, #059669 0%, #047857 50%, #065f46 100%);
+      position: relative;
+    }
+    .hero-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: url('data:image/svg+xml,<svg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><g fill="none" fill-rule="evenodd"><g fill="%23ffffff" fill-opacity="0.05"><path d="M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z"/></g></g></svg>');
+      opacity: 0.3;
+    }
+    .btn-hero-primary {
+      background: #fff;
+      color: #059669;
+      border: none;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+    .btn-hero-primary:hover {
+      background: #f0fdf4;
+      color: #047857;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+    }
+    .btn-hero-secondary {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      border: 2px solid rgba(255,255,255,0.3);
+      backdrop-filter: blur(10px);
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+    .btn-hero-secondary:hover {
+      background: rgba(255,255,255,0.25);
+      border-color: rgba(255,255,255,0.5);
+      color: #fff;
+      transform: translateY(-2px);
+    }
+    
+    /* Card hover effect */
+    .hover-lift {
+      transition: all 0.3s ease;
+    }
+    .hover-lift:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
+    }
+    .card-img-wrapper {
+      overflow: hidden;
+      border-radius: 0.375rem 0.375rem 0 0;
+    }
+    .card-img-wrapper img {
+      transition: transform 0.3s ease;
+    }
+    .hover-lift:hover .card-img-wrapper img {
+      transform: scale(1.05);
+    }
+    
+    /* Button improvements */
+    .btn-outline-success {
+      transition: all 0.2s ease;
+    }
+    .btn-outline-success:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(22, 163, 74, 0.2);
+    }
+    footer { background:#064e3b; color:#d1fae5; }
+    footer a { color:#d1fae5; text-decoration:none; }
+    footer a:hover { color:#fff; }
+    footer h3 { font-size:1.1rem; font-weight:600; }
+    .footer-logo {
+      width:40px; height:40px;
+      border-radius:50%; background:#fff;
+      display:flex; align-items:center; justify-content:center;
+      font-weight:bold; color:#065f46;
+      margin-right:.5rem;
+    }
+/* Ghi đè CSS của Toastr để loại bỏ độ trong suốt (rgba) */
+
+/* 1. Thông báo Warning (Cảnh báo) */
+#toast-container .toast-warning {
+    /* Đặt màu nền solid (màu vàng đậm) */
+    background-color: #f0ad4e; /* Màu vàng đậm, không trong suốt */
+    opacity: 1; /* Đảm bảo độ mờ tuyệt đối */
+}
+
+/* 2. Thông báo Success (Thành công) */
+#toast-container .toast-success {
+    /* Màu xanh lá cây */
+    background-color: #5cb85c;
+    opacity: 1;
+}
+
+/* 3. Thông báo Error (Lỗi) */
+#toast-container .toast-error {
+    /* Màu đỏ */
+    background-color: #d9534f;
+    opacity: 1;
+}
+
+/* 4. Thông báo Info (Thông tin) */
+#toast-container .toast-info {
+    /* Màu xanh dương */
+    background-color: #5bc0de;
+    opacity: 1;
+}
+
+/* Tùy chọn: Đảm bảo nền của chính container cũng không bị trong suốt */
+#toast-container .toast {
+    opacity: 1 !important;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.25); /* Thêm box-shadow cho đẹp */
+}
+#error-section{
+  display: none;
+}
+.pointer{
+  cursor: pointer;
+}
+.img-blog-list{
+  width: 100%;
+  height: 170px;
+  object-fit: cover;
+}
+.tag-a{
+  text-decoration: none;
+  color: #000;
+}
+/* --- Thiết kế chung với tiền tố about- --- */
+.about-section {
+    color: #fff; /* Màu chữ mặc định cho section */
+    overflow: hidden; /* Quan trọng để ẩn phần tử trước khi animation */
+    padding-top: 80px;
+    padding-bottom: 80px;
+}
+
+.about-bg-gradient {
+    /* Gradient màu xanh lá - chủ đề dược liệu */
+    background: linear-gradient(135deg, #1d976c 0%, #93f9b9 100%);
+}
+
+.about-header {
+    padding: 20px 0;
+}
+
+.about-text-primary {
+    color: #0c3b2e !important; /* Màu xanh lá đậm */
+}
+
+.about-divider {
+    width: 60px;
+    height: 4px;
+    background-color: #0c3b2e;
+    border-radius: 2px;
+}
+
+.about-max-width-700 {
+    max-width: 700px;
+}
+
+/* Thẻ Card Tùy chỉnh */
+.about-card-custom {
+    background: rgba(255, 255, 255, 0.95);
+    border: none;
+    border-radius: 15px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.about-card-custom:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.about-icon-circle {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    margin-bottom: 15px;
+}
+
+.about-bg-primary-light {
+    background-color: #d1f3e7;
+}
+
+.about-bg-success-light {
+    background-color: #d4edda;
+}
+
+.about-bg-warning-light {
+    background-color: #fff3cd;
+}
+
+.about-card-title {
+    font-weight: 600;
+}
+
+.about-card-text {
+    font-size: 1.05rem;
+}
+
+.about-checklist {
+    font-size: 1.1rem;
+    padding-left: 0;
+}
+
+.about-list-values li {
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+}
+
+/* --- Hiệu ứng Animation (Fade In Up) --- */
+/* Định nghĩa trạng thái ban đầu (ẩn và dịch chuyển xuống) */
+.about-animate-fade-in-up {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+}
+
+/* Định nghĩa trạng thái khi đã được kích hoạt (hiển thị và về vị trí) */
+.about-animate-fade-in-up.about-is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Điều chỉnh độ trễ cho từng phần tử */
+[data-delay] {
+    transition-delay: var(--delay);
+}
+/* Custom style để Select2 giống với Bootstrap .form-control */
+
+/* 1. Thiết lập style cho phần tử chọn (select box) */
+.select2-container--default .select2-selection--single {
+    /* Đảm bảo chiều cao, padding, và màu viền giống Bootstrap 4/5 .form-control */
+    height: calc(1.5em + .75rem + 2px); /* Chiều cao tiêu chuẩn của form-control */
+    padding: .375rem .75rem; /* Padding dọc và ngang */
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #495057; /* Màu chữ */
+    background-color: #fff; /* Màu nền */
+    border: 1px solid #ced4da; /* Viền */
+    border-radius: .25rem; /* Bo góc */
+    transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+}
+
+/* 2. Căn chỉnh vị trí của chữ (placeholder/giá trị đã chọn) */
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 1.5;
+    padding-left: 0; /* Xóa padding mặc định của Select2 */
+    padding-right: 0;
+    margin-top: -3px; /* Điều chỉnh nhỏ để căn giữa text theo chiều dọc */
+}
+
+/* 3. Thiết lập style khi Select2 được focus (active) */
+.select2-container--default.select2-container--focus .select2-selection--single {
+    border-color: #80bdff; /* Màu viền khi focus (màu xanh dương mặc định của Bootstrap) */
+    outline: 0;
+    box-shadow: 0 0 0 .2rem rgba(0, 123, 255, .25); /* Box shadow khi focus */
+}
+
+/* 4. Tùy chỉnh mũi tên thả xuống */
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: calc(1.5em + .75rem + 2px); /* Đảm bảo mũi tên có chiều cao tương thích */
+    top: 1px; /* Điều chỉnh vị trí của mũi tên */
+    right: 1px;
+}
+
+/* Nếu bạn sử dụng Select2 trên các thẻ <select> có class .form-control */
+/* Bạn có thể thêm class này vào: */
+.form-control + .select2-container {
+    width: 100% !important;
+}
+
+/* Tùy chọn: Nếu bạn sử dụng Select2 với nhiều lựa chọn (multiple select) */
+.select2-container--default .select2-selection--multiple {
+    min-height: calc(1.5em + .75rem + 2px); /* Chiều cao tối thiểu */
+    border: 1px solid #ced4da;
+    border-radius: .25rem;
+    padding: .375rem .75rem;
+}
+.select2-container--default.select2-container--focus .select2-selection--multiple {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 .2rem rgba(0, 123, 255, .25);
+}
+/* Chiều cao tổng thể của select2 box - Giữ nguyên như trước */
+.select2-container--default .select2-selection--single {
+    height: calc(1.5em + .75rem + 2px); /* Chiều cao form-control mặc định của Bootstrap */
+    /* ... các style khác như border, padding ... */
+    padding: .375rem .75rem; 
+    border: 1px solid #ced4da;
+    border-radius: .25rem;
+}
+
+/* Áp dụng LINE-HEIGHT cho phần tử hiển thị văn bản (bao gồm cả placeholder) */
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    /* Quan trọng: Thiết lập line-height để căn giữa theo chiều dọc */
+    /* Thử giá trị 28px hoặc 30px, giá trị này thường hoạt động tốt với chiều cao Bootstrap mặc định */
+    line-height: 28px !important; 
+    
+    /* Thiết lập padding về 0 hoặc rất nhỏ */
+    padding: 0 !important; 
+    
+    /* Điều chỉnh nhỏ nếu cần thiết (bỏ comment và thử nghiệm) */
+    /* margin-top: -1px; */ 
+}
+
+/* Căn chỉnh lại mũi tên thả xuống cho đúng vị trí */
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: calc(1.5em + .75rem + 2px); 
+    top: 1px; 
+    right: 1px;
+}
+.card-img-top{
+    height: 200px;
+    object-fit: cover;
+}
+
+
+
+
+.chatbot-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+}
+
+.chat-toggle {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 50px;
+    padding: 10px 15px;
+    font-size: 14px;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+}
+
+.chatbox {
+    width: 300px;
+    height: 400px;
+    background: #ffffff;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 0 15px rgba(0,0,0,0.3);
+    margin-bottom: 10px;
+}
+
+.chat-header {
+    background: #007bff;
+    color: white;
+    padding: 10px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.chat-messages {
+    flex: 1;
+    padding: 10px;
+    overflow-y: auto;
+    font-size: 14px;
+    background: #f7f7f7;
+}
+
+.message {
+    margin-bottom: 8px;
+}
+
+.message.user {
+    text-align: right;
+}
+
+.message.bot {
+    text-align: left;
+}
+
+.chat-input {
+    display: flex;
+    padding: 10px;
+    border-top: 1px solid #ccc;
+}
+
+.chat-input input {
+    flex: 1;
+    padding: 6px 8px;
+    font-size: 14px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+}
+
+.chat-input button {
+    margin-left: 5px;
+    padding: 6px 12px;
+    font-size: 14px;
+    border: none;
+    background: #007bff;
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.chat-suggestions {
+    padding: 8px 10px;
+    background: #f9f9f9;
+    border-top: 1px solid #eee;
+}
+
+.chat-suggestions button {
+    background: #ffc107;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.suggestion-list {
+    margin-top: 8px;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    max-height: 180px;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+.suggestion-item {
+    padding: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    border-bottom: 1px solid #eee;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background: #f2f2f2;
+}
+/* Mặc định cho mobile */
+.chatbox {
+    width: 300px;
+    height: 420px;
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 999;
+}
+
+/* Ghi đè khi ở desktop */
+@media (min-width: 768px) {
+    .chatbox {
+        width: 400px;
+        height: 550px;
+    }
+}
+.hidden {
+    display: none !important;
+}
+/* CSS cho nút đính kèm */
+#attach-btn {
+    margin-right: 5px;
+    padding: 6px 10px; /* Điều chỉnh padding để nút nhỏ gọn hơn */
+    font-size: 16px;
+    background: #f8f9fa; /* Màu nền nhẹ */
+    color: #495057;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+/* CSS cho vùng kéo thả */
+.chatbox {
+    position: relative; /* Quan trọng: Để vùng drop-zone định vị tuyệt đối */
+}
+
+.drop-zone {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 123, 255, 0.9); /* Màu xanh mờ */
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    z-index: 1000;
+    border: 3px dashed white;
+    pointer-events: none; /* Rất quan trọng: Cho phép click xuyên qua khi không kéo */
+}
+
+/* Class hiển thị ảnh đã chọn/kéo */
+.message-image-preview {
+    max-width: 100%;
+    max-height: 150px;
+    display: block;
+    border-radius: 6px;
+    margin-top: 5px;
+}
+
+.image-preview-area {
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+    background: #f8f8f8;
+    position: relative;
+    display: flex; /* Dùng flex để căn chỉnh */
+    align-items: flex-start;
+}
+
+#preview-image {
+    max-width: 80px; /* Kích thước nhỏ gọn cho preview */
+    max-height: 80px;
+    border-radius: 6px;
+    object-fit: cover;
+    margin-right: 10px;
+}
+
+#remove-image-btn {
+    position: absolute;
+    top: 0px;
+    right: 5px;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* --- VÙNG INPUT --- */
+.chat-input-wrapper {
+    flex-shrink: 0;
+    /* Loại bỏ padding cũ nếu muốn preview dính vào mép */
+    padding: 0;
+    border-top: 1px solid #ccc;
+    background: #fff;
+    position: relative;
+}
+
+.chat-input {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px; /* Padding cho vùng input chính */
+}
+
+/* PHẦN HEADER NGHIÊN CỨU */
+.research-hero {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    padding: 50px 0;
+    margin-bottom: 40px;
+    border-bottom: 4px solid #007bff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.research-title {
+    color: #212529;
+    font-weight: 700;
+    font-size: 2rem;
+    line-height: 1.3;
+    margin-bottom: 20px;
+}
+
+.meta-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-top: 15px;
+}
+
+.meta-info span {
+    font-size: 0.95rem;
+    color: #6c757d;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.meta-info span i {
+    color: #007bff;
+}
+
+/* PHẦN NỘI DUNG CHÍNH */
+.research-section {
+    background-color: #ffffff;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    margin-bottom: 30px;
+    transition: box-shadow 0.3s ease;
+}
+
+.research-section:hover {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+}
+
+.section-heading {
+    color: #007bff; /* Primary Color: #007bff */
+    border-left: 4px solid #007bff; /* Primary Color: #007bff */
+    padding-left: 15px;
+    margin-bottom: 25px;
+    font-weight: 600;
+    font-size: 1.5rem;
+}
+
+/* Căn lề 2 bên cho phần mô tả nghiên cứu */
+.research-section .lead {
+    text-align: justify;
+    line-height: 1.8;
+    font-size: 1.1rem;
+    color: #495057;
+    margin-bottom: 0;
+    padding: 15px 0;
+}
+
+/* CARD THÔNG TIN SIDEBAR */
+.info-card {
+    padding: 18px;
+    margin-bottom: 18px;
+    border-radius: 8px;
+    background-color: #f8f9fa;
+    border-left: 4px solid #16a34a;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.info-card:hover {
+    background-color: #e9f7ef;
+    transform: translateX(5px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.info-card-label {
+    font-weight: 600;
+    color: #212529;
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+}
+
+.info-card a {
+    color: #16a34a;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.info-card a:hover {
+    color: #15803d;
+    text-decoration: underline;
+}
+
+/* Căn lề 2 bên cho phần nội dung chi tiết nghiên cứu */
+.research-content {
+    text-align: justify;
+    line-height: 1.8;
+    font-size: 1rem;
+    color: #495057;
+}
+
+.research-content p {
+    text-align: justify;
+    line-height: 1.8;
+    margin-bottom: 1.2rem;
+    color: #495057;
+}
+
+.research-content h1,
+.research-content h2,
+.research-content h3,
+.research-content h4,
+.research-content h5,
+.research-content h6 {
+    text-align: left;
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    color: #343a40;
+}
+
+.research-content ul,
+.research-content ol {
+    text-align: left;
+    padding-left: 2rem;
+    margin-bottom: 1.2rem;
+}
+
+.research-content li {
+    margin-bottom: 0.5rem;
+    line-height: 1.8;
+}
+
+.research-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 20px 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.research-content blockquote {
+    border-left: 4px solid #007bff;
+    padding-left: 20px;
+    margin: 20px 0;
+    font-style: italic;
+    color: #6c757d;
+    background-color: #f8f9fa;
+    padding: 15px 20px;
+    border-radius: 4px;
+}
+
+/* CARD CÂY THUỐC */
+.plant-card {
+    border: 1px solid #dee2e6;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.plant-card:hover {
+    border-color: #28a745; /* Success Color: #28a745 */
+    transform: translateY(-5px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.plant-img {
+    height: 120px;
+    object-fit: cover;
+}
+
+/* Custom CSS for Expert Detail Page */
+
+.expert-detail {
+    padding: 15px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.expert-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+    margin: 15px 0;
+}
+
+.expert-content h2 {
+    font-size: 1.6rem;
+    color: #007bff; /* Màu chủ đạo Bootstrap Primary */
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+}
+
+.expert-info-bar strong {
+    color: #333;
+}

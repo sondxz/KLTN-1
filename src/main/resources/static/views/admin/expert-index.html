@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Chuyên gia</title>
+  <link rel="icon" type="image/png" href="/image/cay.jfif">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="/admin/js/main.js"></script>
+  <link rel="stylesheet" href="/admin/css/styleadmin.css">
+</head>
+<body>
+  <div class="d-flex">
+    <div id="header-admin"></div>
+    <div class="flex-grow-1 d-flex flex-column">
+      <div id="navbar-admin"></div>
+      <main class="main bg-light flex-grow-1">
+        <div class="py-4 px-3 px-sm-4 px-lg-5">
+          <!-- Title -->
+          <div class="mb-4">
+            <h1 class="h4 fw-bold text-dark">Trang quản lý chuyên gia</h1>
+            <p class="mt-1 text-muted small">Quản lý và duyệt nội dung từ người dùng</p>
+          </div>
+
+          <!-- Stats -->
+          <div class="row g-3 mb-4">
+            <div class="col-12 col-sm-6 col-lg-4">
+              <div class="card border-primary">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="card-title small mb-0">Cây dược liệu chờ duyệt</h6>
+                    <i data-lucide="leaf" class="text-warning"></i>
+                  </div>
+                  <h3 class="fw-bold mb-0" id="pendingPlantsCount">0</h3>
+                  <a href="/admin/pending-approval#plants" class="btn btn-sm btn-outline-primary mt-2">Xem chi tiết</a>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-6 col-lg-4">
+              <div class="card border-primary">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="card-title small mb-0">Bài viết chờ duyệt</h6>
+                    <i data-lucide="file-text" class="text-warning"></i>
+                  </div>
+                  <h3 class="fw-bold mb-0" id="pendingArticlesCount">0</h3>
+                  <a href="/admin/pending-approval#articles" class="btn btn-sm btn-outline-primary mt-2">Xem chi tiết</a>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-sm-6 col-lg-4">
+              <div class="card border-success">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="card-title small mb-0">Tổng số cây dược liệu</h6>
+                    <i data-lucide="leaf" class="text-success"></i>
+                  </div>
+                  <h3 class="fw-bold mb-0" id="totalPlantsCount">0</h3>
+                  <a href="/admin/list-plant" class="btn btn-sm btn-outline-success mt-2">Quản lý</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="row g-4">
+            <div class="col-12 col-lg-6">
+              <div class="card">
+                <div class="card-header bg-primary text-white">
+                  <h5 class="mb-0">Thao tác nhanh</h5>
+                </div>
+                <div class="card-body">
+                  <div class="d-grid gap-2">
+                    <a href="/admin/pending-approval" class="btn btn-warning">
+                      <i data-lucide="check-circle" class="me-2"></i>Duyệt nội dung chờ phê duyệt
+                    </a>
+                    <a href="/admin/list-plant" class="btn btn-outline-success">
+                      <i data-lucide="leaf" class="me-2"></i>Quản lý cây dược liệu
+                    </a>
+                    <a href="/admin/list-article" class="btn btn-outline-primary">
+                      <i data-lucide="file-text" class="me-2"></i>Quản lý bài viết
+                    </a>
+                    <a href="/admin/list-research" class="btn btn-outline-info">
+                      <i data-lucide="book-open" class="me-2"></i>Quản lý nghiên cứu
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-lg-6">
+              <div class="card">
+                <div class="card-header bg-info text-white">
+                  <h5 class="mb-0">Hướng dẫn</h5>
+                </div>
+                <div class="card-body">
+                  <ul class="list-unstyled mb-0">
+                    <li class="mb-2">
+                      <i data-lucide="check" class="text-success me-2"></i>
+                      <strong>Duyệt nội dung:</strong> Kiểm tra và phê duyệt các bài đăng từ người dùng
+                    </li>
+                    <li class="mb-2">
+                      <i data-lucide="check" class="text-success me-2"></i>
+                      <strong>Quản lý cây dược liệu:</strong> Xem, chỉnh sửa và quản lý thông tin cây dược liệu
+                    </li>
+                    <li class="mb-2">
+                      <i data-lucide="check" class="text-success me-2"></i>
+                      <strong>Quản lý bài viết:</strong> Xem và quản lý các bài viết trong hệ thống
+                    </li>
+                    <li>
+                      <i data-lucide="check" class="text-success me-2"></i>
+                      <strong>Danh mục:</strong> Quản lý công dụng và họ thực vật
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Load số lượng chờ duyệt
+    async function loadPendingCounts() {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      try {
+        // Load số cây chờ duyệt
+        const plantsRes = await fetch('/api/plant/expert/pending?page=0&size=1', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (plantsRes.ok) {
+          const plantsData = await plantsRes.json();
+          document.getElementById("pendingPlantsCount").textContent = plantsData.totalElements || 0;
+        }
+
+        // Load số bài viết chờ duyệt
+        const articlesRes = await fetch('/api/articles/expert/pending?page=0&size=1', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (articlesRes.ok) {
+          const articlesData = await articlesRes.json();
+          document.getElementById("pendingArticlesCount").textContent = articlesData.totalElements || 0;
+        }
+      } catch (err) {
+        console.error("Error loading counts:", err);
+      }
+    }
+
+    window.onload = function() {
+      lucide.createIcons();
+      loadPendingCounts();
+    };
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,177 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DuocLieuVN - Cây dược liệu</title>
+    <link rel="icon" type="image/png" href="/image/cay.jfif">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="/js/main.js"></script>
+    <script src="/js/plant.js"></script>
+    <script>
+      window.onload = async function(){
+        await loadDiseasesSelect();
+        await loadFamiliesSelect();
+        clickSelect();
+        const params = new URLSearchParams(window.location.search);
+        const searchQ = params.get('search');
+        if (searchQ) {
+          const input = document.getElementById("param");
+          if (input) input.value = searchQ;
+        }
+        const nameSearchQ = params.get('nameSearch');
+        if (nameSearchQ) {
+          const input = document.getElementById("nameSearch");
+          if (input) input.value = nameSearchQ;
+        }
+        loadAllPlant(0);
+      }
+    </script>
+</head>
+<body>
+<header id="header-main"></header>
+<!-- Container -->
+<div class="container py-5">
+  <!-- Header -->
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
+    <div>
+      <h1 class="h3 fw-bold text-dark">Cây dược liệu</h1>
+      <p class="mt-2 text-muted">Danh sách các loại cây dược liệu Việt Nam</p>
+    </div>
+  </div>
+
+  <!-- Search & Filters -->
+  <div class="bg-white p-4 rounded shadow-sm mb-5">
+    <div class="row g-3">
+      <!-- Search by name only -->
+      <div class="col-12 col-md-3 position-relative">
+        <input onkeyup="loadAllPlant(0)" type="text" class="form-control pe-5" placeholder="Tìm theo tên cây..." id="nameSearch" />
+        <button class="btn btn-sm position-absolute top-50 end-0 translate-middle-y me-2 text-secondary" id="searchNameBtn">
+          <i class="bi bi-search"></i>
+        </button>
+      </div>
+      <!-- Full text search -->
+      <div class="col-12 col-md-3 position-relative">
+        <input onkeyup="loadAllPlant(0)" type="text" class="form-control pe-5" placeholder="Tìm kiếm toàn bộ (tên, mô tả, công dụng...)" id="param" />
+        <button class="btn btn-sm position-absolute top-50 end-0 translate-middle-y me-2 text-secondary" id="searchBtn">
+          <i class="bi bi-search"></i>
+        </button>
+        <button class="btn btn-sm position-absolute top-50 end-0 translate-middle-y me-5 text-secondary d-none" id="clearKeywordBtn">
+          <i class="bi bi-x"></i>
+        </button>
+      </div>
+
+      <!-- Disease filter -->
+      <div class="col-12 col-md-2">
+        <select class="form-select" id="diseases" onchange="loadAllPlant(0)" multiple>
+        </select>
+      </div>
+      <div class="col-12 col-md-2">
+        <select class="form-select" id="families"  onchange="loadAllPlant(0)" multiple>
+        </select>
+      </div>
+
+      <!-- Sort select -->
+      <div class="col-12 col-md-2">
+        <select class="form-select" id="sort" onchange="loadAllPlant(0)">
+          <option value="id,desc">Mới nhất</option>
+          <option value="id,asc">Cũ nhất</option>
+          <option value="name,asc">Tên A-Z</option>
+          <option value="name,desc">Tên Z-A</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <ul class="nav nav-tabs mb-4" id="viewTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="grid-tab" data-bs-toggle="tab" data-bs-target="#gridView" type="button" role="tab">Lưới</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="list-tab" data-bs-toggle="tab" data-bs-target="#listView" type="button" role="tab">Danh sách</button>
+    </li>
+  </ul>
+
+  <div class="tab-content">
+    <!-- Grid view -->
+    <div class="tab-pane fade show active" id="gridView" role="tabpanel">
+      <div class="row g-4" id="listData">
+        <!-- Item -->
+        <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+          <div class="card h-100 shadow-sm">
+            <div class="ratio ratio-4x3 bg-light d-flex align-items-center justify-content-center">
+              <i class="bi bi-image text-muted fs-3"></i>
+            </div>
+            <div class="card-body">
+              <h5 class="card-title">Tên cây</h5>
+              <p class="card-text text-muted mb-1">Họ: Không có thông tin</p>
+              <p class="card-text text-muted">Tên khoa học: Không có thông tin</p>
+            </div>
+            <div class="card-footer bg-white">
+              <a href="#" class="btn btn-outline-primary w-100">Xem chi tiết</a>
+            </div>
+          </div>
+        </div>
+        <!-- /Item -->
+      </div>
+    </div>
+
+    <!-- List view -->
+    <div class="tab-pane fade" id="listView" role="tabpanel">
+      <div class="d-flex flex-column gap-4" id="listDataGrid">
+        <!-- Item -->
+        <div class="card shadow-sm">
+          <div class="row g-0">
+            <div class="col-sm-4 bg-light d-flex align-items-center justify-content-center" style="min-height:200px;">
+              <i class="bi bi-image text-muted fs-3"></i>
+            </div>
+            <div class="col-sm-8">
+              <div class="card-body">
+                <h5 class="card-title">Tên cây</h5>
+                <p class="card-text text-muted">Tên khoa học: Không có thông tin</p>
+                <div class="row mb-3">
+                  <div class="col-6 small text-muted">Họ: Không có thông tin</div>
+                  <div class="col-6 small text-muted">Chi: Không có thông tin</div>
+                  <div class="col-6 small text-muted">Bộ phận dùng: Không có thông tin</div>
+                  <div class="col-6 small text-muted">Vùng phân bố: Không có thông tin</div>
+                </div>
+                <div class="text-end">
+                  <a href="#" class="btn btn-outline-primary">Xem chi tiết</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- /Item -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  <nav aria-label="Page navigation" class="mt-5">
+    <ul class="pagination justify-content-center" id="pageable">
+      <li class="page-item disabled"><a class="page-link" href="#">Trước</a></li>
+      <li class="page-item active"><a class="page-link" href="#">1</a></li>
+      <li class="page-item"><a class="page-link" href="#">2</a></li>
+      <li class="page-item"><a class="page-link" href="#">3</a></li>
+      <li class="page-item"><a class="page-link" href="#">Sau</a></li>
+    </ul>
+  </nav>
+</div>
+
+
+
+<footer class="pt-5" id="footer-main"></footer>
+<th:block th:replace="user/chat :: chatMain">
+</th:block>
+</body>
+</html>
+
+

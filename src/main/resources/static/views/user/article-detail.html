@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title th:text="'DuocLieuVN - ' + ${article.title}">DuocLieuVN - Chi tiết Bài Viết</title>
+    <link rel="icon" type="image/png" href="/image/cay.jfif">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/2.0.2/js/toastr.min.js"></script>
+    <script src="/js/main.js"></script>
+    <script src="/js/comment.js"></script>
+    <style>
+        /* CSS tùy chỉnh cho trang chi tiết bài viết */
+        .article-banner {
+            width: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+        .article-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        .article-content h1, .article-content h2, .article-content h3 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.8rem;
+        }
+        .article-info-bar {
+            border-top: 1px solid #eee;
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+            margin-bottom: 2rem;
+        }
+        .article-content {
+            font-size: 1.1rem;
+            line-height: 1.8;
+            text-align: justify;
+        }
+        .comment-item {
+            transition: all 0.3s ease;
+        }
+        .comment-reply {
+            border-left: 3px solid #e0e0e0;
+            padding-left: 15px;
+        }
+        .comment-item:hover {
+            background-color: #f8f9fa;
+        }
+    </style>
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+        var articleId = /*[[${article.id}]]*/ null;
+        /*]]>*/
+    </script>
+</head>
+<body>
+<header id="header-main"></header>
+
+<div class="container py-5">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a th:href="@{/}" href="index.html">Trang chủ</a></li>
+            <li class="breadcrumb-item"><a th:href="@{/article-list}" href="article-list.html">Bài Viết</a></li>
+            <li class="breadcrumb-item active" aria-current="page" th:text="${article.title}">Tên Bài Viết</li>
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <h1 class="display-5 fw-bold mb-3" th:text="${article.title}">Tiêu đề Bài Viết Lớn và Chi Tiết</h1>
+
+            <div class="article-info-bar d-flex justify-content-between text-muted small">
+                <div>
+                    <i class="bi bi-person-fill me-1"></i>Tác giả:
+                    <strong th:text="${article.user.fullname}"></strong>
+                    <span class="mx-2">|</span>
+                    <i class="bi bi-calendar-check me-1"></i>Ngày đăng:
+                    <span th:text="${#temporals.format(article.createdAt, 'HH:mm dd/MM/yy')}"></span>
+                </div>
+                <div>
+                        <span th:if="${article.diseases != null}">
+                            <a href="#" class="badge bg-danger text-decoration-none me-2" th:text="${article.diseases.name}"></a>
+                        </span>
+                    <i class="bi bi-eye-fill me-1"></i>Lượt xem:
+                    <span th:text="${#numbers.formatInteger(article.viewCount != null ? article.viewCount : 0, 0, 'POINT')}"></span>
+                </div>
+            </div>
+
+            <img th:src="${article.imageBanner}" alt="Ảnh Banner Bài viết" class="article-banner">
+
+            <p class="lead text-primary fst-italic mb-5 p-3 border-start border-4 border-primary bg-light"
+               th:text="${article.excerpt}">
+            </p>
+
+            <div class="article-content" th:utext="${article.content}">
+            </div>
+
+            <hr class="mt-5 mb-4">
+            <div class="d-flex justify-content-end align-items-center">
+                <span class="me-3">Chia sẻ:</span>
+                <a th:href="'https://www.facebook.com/sharer/sharer.php?u=' + ${#httpServletRequest.requestURL}" target="_blank" class="btn btn-outline-secondary btn-sm me-2"><i class="bi bi-facebook"></i></a>
+                <a th:href="'https://twitter.com/intent/tweet?url=' + ${#httpServletRequest.requestURL} + '&amp;text=' + ${article.title}" target="_blank" class="btn btn-outline-secondary btn-sm me-2"><i class="bi bi-twitter"></i></a>
+                <a th:href="'mailto:?subject=' + ${article.title} + '&amp;body=' + ${#httpServletRequest.requestURL}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-envelope"></i></a>
+            </div>
+
+            <h3 class="mt-5 mb-3">
+                <i class="bi bi-chat-dots me-2"></i>Bình Luận
+                <span id="comment-count" class="badge bg-secondary ms-2"></span>
+            </h3>
+            
+            <div th:if="${article.allowComments}">
+                <!-- Form bình luận -->
+                <div class="card mb-4" id="comment-form-section">
+                    <div class="card-body">
+                        <h5 class="card-title">Viết bình luận</h5>
+                        <div id="comment-login-required" style="display: none;">
+                            <p class="text-muted">Bạn cần <a href="/login">đăng nhập</a> để bình luận.</p>
+                        </div>
+                        <div id="comment-form" style="display: none;">
+                            <textarea id="comment-content" class="form-control mb-3" rows="4" placeholder="Viết bình luận của bạn..."></textarea>
+                            <button class="btn btn-primary" onclick="postComment()">
+                                <i class="bi bi-send me-1"></i>Gửi bình luận
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Danh sách bình luận -->
+                <div id="comments-list" data-article-id th:attr="data-article-id=${article.id}">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Đang tải...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div th:unless="${article.allowComments}">
+                <div class="alert alert-info text-center">
+                    <i class="bi bi-info-circle me-2"></i>
+                    Chức năng bình luận đã bị vô hiệu hóa cho bài viết này.
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<footer class="pt-5" id="footer-main"></footer>
+<th:block th:replace="user/chat :: chatMain">
+</th:block>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    // Load comments khi trang được tải
+    window.addEventListener('DOMContentLoaded', function() {
+        const allowComments = /*[[${article.allowComments}]]*/ true;
+        
+        // Hiển thị/ẩn form comment dựa trên token
+        const token = localStorage.getItem("token");
+        if (token) {
+            document.getElementById("comment-form").style.display = "block";
+        } else {
+            document.getElementById("comment-login-required").style.display = "block";
+        }
+        
+        if (allowComments) {
+            loadComments();
+        }
+    });
+    /*]]>*/
+</script>
+</body>
+</html>

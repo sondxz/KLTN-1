@@ -1,0 +1,210 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng bài viết - DuocLieuVN</title>
+    <link rel="icon" type="image/png" href="/image/cay.jfif">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+    <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/2.0.2/js/toastr.min.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="/js/main.js"></script>
+    <script src="/js/user-article.js"></script>
+    <script>
+        window.onload = async function() {
+            const token = localStorage.getItem("token");
+            if(!token) {
+                window.location.href = '/login';
+                return;
+            }
+            await loadDiseasesList();
+            initQuill();
+        }
+    </script>
+</head>
+<body>
+<header id="header-main"></header>
+
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <div class="mb-4">
+                <h1 class="h3 fw-bold">Đăng bài viết mới</h1>
+                <p class="text-muted">Vui lòng điền đầy đủ thông tin. Bài viết của bạn sẽ được chuyên gia kiểm duyệt trước khi xuất bản.</p>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <form id="articleForm">
+                        <div class="mb-3">
+                            <label class="form-label">Tiêu đề <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="title" required onkeyup="createSlug(this.value)">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Công dụng</label>
+                            <select class="form-select" id="diseases">
+                                <option value="">Chọn công dụng</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Tóm tắt <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="excerpt" rows="3" required placeholder="Tóm tắt ngắn gọn về nội dung bài viết"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Nội dung <span class="text-danger">*</span></label>
+                            <div id="editor" style="height: 400px;"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Ảnh bìa</label>
+                            <input type="file" class="form-control" id="featuredImage" accept="image/*">
+                            <div id="imagePreview" class="mt-2"></div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle"></i> Gửi để duyệt
+                            </button>
+                            <a href="/articles" class="btn btn-outline-secondary">Hủy</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer class="pt-5" id="footer-main"></footer>
+
+<script>
+    let quillEditor;
+    let uploadedImageBanner = null;
+
+    function initQuill() {
+        quillEditor = new Quill('#editor', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    ['link', 'image'],
+                    ['clean']
+                ]
+            }
+        });
+    }
+
+    function createSlug(name) {
+        // Không cần hiển thị slug cho user
+    }
+
+    // Upload ảnh bìa
+    document.getElementById("featuredImage").addEventListener("change", async function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const formData = new FormData();
+        formData.append("file", file);
+        
+        try {
+            const res = await fetch("/api/public/upload-file", {
+                method: "POST",
+                body: formData
+            });
+            
+            if (res.ok) {
+                uploadedImageBanner = await res.text();
+                document.getElementById("imagePreview").innerHTML = 
+                    `<img src="${uploadedImageBanner}" class="img-thumbnail" style="max-width: 300px;">`;
+                toastr.success("Tải ảnh bìa thành công!");
+            } else {
+                toastr.error("Tải ảnh thất bại!");
+            }
+        } catch (err) {
+            toastr.error("Lỗi kết nối!");
+        }
+    });
+
+    // Submit form
+    document.getElementById("articleForm").addEventListener("submit", async function(e) {
+        e.preventDefault();
+        
+        const token = localStorage.getItem("token");
+        if (!token) {
+            toastr.error("Vui lòng đăng nhập!");
+            window.location.href = '/login';
+            return;
+        }
+
+        const title = document.getElementById("title").value;
+        const slug = title.toLowerCase()
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9\s-]/g, "")
+            .replace(/[\s_-]+/g, "-")
+            .trim("-");
+
+        const article = {
+            title: title,
+            slug: slug,
+            excerpt: document.getElementById("excerpt").value,
+            content: quillEditor.root.innerHTML,
+            imageBanner: uploadedImageBanner,
+            diseases: document.getElementById("diseases").value ? {
+                id: parseInt(document.getElementById("diseases").value)
+            } : null,
+            allowComments: true,
+            isFeatured: false
+        };
+
+        try {
+            const response = await fetch("/api/articles/user/save", {
+                method: "POST",
+                headers: {
+                    "Authorization": "Bearer " + token,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(article)
+            });
+
+            if (response.ok) {
+                toastr.success("Đã gửi bài viết thành công! Vui lòng chờ chuyên gia duyệt.");
+                setTimeout(() => {
+                    window.location.href = '/articles';
+                }, 2000);
+            } else {
+                const error = await response.text();
+                toastr.error("Lỗi: " + error);
+            }
+        } catch (err) {
+            toastr.error("Lỗi kết nối!");
+        }
+    });
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

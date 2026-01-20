@@ -1,0 +1,228 @@
+﻿<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DuocLieuVN - Trang chủ</title>
+    <link rel="icon" type="image/png" href="/image/cay.jfif">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="/js/main.js"></script>
+    <script src="/js/plant.js"></script>
+    <!-- Không cần loadPlantIndex() nữa vì đã dùng Thymeleaf render top viewed -->
+</head>
+<body>
+
+<!-- Header -->
+<header id="header-main">
+  
+</header>
+
+<!-- Hero -->
+<section class="hero-section text-white text-center py-5 position-relative overflow-hidden">
+  <div class="hero-overlay"></div>
+  <div class="container position-relative">
+    <h1 class="display-5 fw-bold mb-3">Cây Dược Liệu Việt Nam</h1>
+    <p class="lead mb-4 opacity-90">Hệ thống quản lý thông tin cây dược liệu, bài viết nghiên cứu và chuyên gia</p>
+    <div class="mt-4 d-flex justify-content-center gap-3 flex-wrap">
+      <a href="/plant" class="btn btn-hero-primary btn-lg px-4 py-2">
+        <i class="bi bi-flower1 me-2"></i>Khám phá cây dược liệu
+      </a>
+      <a href="/articles" class="btn btn-hero-secondary btn-lg px-4 py-2">
+        <i class="bi bi-journal-text me-2"></i>Bài viết nghiên cứu
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Search -->
+<section class="py-5 bg-white">
+  <div class="container" style="max-width:600px;">
+    <div class="input-group input-group-lg">
+      <span class="input-group-text"><i class="bi bi-search"></i></span>
+      <input type="text" class="form-control" id="homePlantSearch" placeholder="Tìm kiếm cây dược liệu...">
+    </div>
+  </div>
+</section>
+
+<!-- Categories -->
+<section class="py-5 bg-light">
+  <div class="container">
+    <h2 class="text-center fw-bold mb-5 text-dark">Danh mục chính</h2>
+    <div class="row g-4">
+      <div class="col-sm-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm hover-lift">
+          <div class="card-img-wrapper">
+            <img src="/image/cay.jfif" class="card-img-top" alt="Cây dược liệu" style="height: 200px; object-fit: cover;">
+          </div>
+          <div class="card-body d-flex flex-column">
+            <h5 class="card-title fw-semibold">Cây Dược Liệu</h5>
+            <p class="card-text text-muted small flex-grow-1">Thông tin chi tiết về các loại cây dược liệu Việt Nam</p>
+            <a href="/plant" class="btn btn-outline-success mt-auto">Xem danh sách <i class="bi bi-arrow-right ms-1"></i></a>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm hover-lift">
+          <div class="card-img-wrapper">
+            <img src="/image/bv.jpg" class="card-img-top" alt="Bài viết" style="height: 200px; object-fit: cover;">
+          </div>
+          <div class="card-body d-flex flex-column">
+            <h5 class="card-title fw-semibold">Bài Viết</h5>
+            <p class="card-text text-muted small flex-grow-1">Các bài viết về cây dược liệu và công dụng</p>
+            <a href="/articles" class="btn btn-outline-success mt-auto">Xem bài viết <i class="bi bi-arrow-right ms-1"></i></a>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm hover-lift">
+          <div class="card-img-wrapper">
+            <img src="/image/nc.jpg" class="card-img-top" alt="Nghiên cứu" style="height: 200px; object-fit: cover;">
+          </div>
+          <div class="card-body d-flex flex-column">
+            <h5 class="card-title fw-semibold">Nghiên Cứu</h5>
+            <p class="card-text text-muted small flex-grow-1">Đề tài nghiên cứu khoa học về dược liệu</p>
+            <a href="/research" class="btn btn-outline-success mt-auto">Xem nghiên cứu <i class="bi bi-arrow-right ms-1"></i></a>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm hover-lift">
+          <div class="card-img-wrapper">
+            <img src="/image/chuyengia.jpg" class="card-img-top" alt="Chuyên gia" style="height: 200px; object-fit: cover;">
+          </div>
+          <div class="card-body d-flex flex-column">
+            <h5 class="card-title fw-semibold">Chuyên Gia</h5>
+            <p class="card-text text-muted small flex-grow-1">Thông tin về các chuyên gia dược liệu</p>
+            <a href="/experts" class="btn btn-outline-success mt-auto">Xem chuyên gia <i class="bi bi-arrow-right ms-1"></i></a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Top Viewed Plants -->
+<section class="py-5 bg-white">
+  <div class="container">
+    <h2 class="text-center fw-bold mb-5 text-dark">
+      Cây dược liệu nổi bật
+    </h2>
+    <div class="row g-4" id="listcaynoibat">
+      <th:block th:if="${topViewedPlants != null and !topViewedPlants.isEmpty()}">
+        <th:block th:each="plant : ${topViewedPlants}">
+          <div class="col-md-4 col-lg-2">
+            <div class="card h-100 border-0 shadow-sm hover-lift">
+              <a th:href="@{/plant-detail/{slug}(slug=${plant.slug})}" class="text-decoration-none">
+                <div class="card-img-wrapper">
+                  <img th:src="${plant.image != null ? plant.image : '/image/placeholder.svg'}" 
+                       class="card-img-top" 
+                       th:alt="${plant.name}"
+                       style="height: 180px; object-fit: cover;">
+                </div>
+                <div class="card-body d-flex flex-column">
+                  <h6 class="card-title fw-semibold text-dark mb-2" th:text="${plant.name}">Tên cây</h6>
+                  <p class="card-text text-muted small mb-2" th:if="${plant.scientificName}" th:text="${plant.scientificName}">Tên khoa học</p>
+                  <div class="mt-auto d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                      <i class="bi bi-eye me-1"></i>
+                      <span th:text="${plant.viewCount != null ? plant.viewCount : 0}">0</span> lượt xem
+                    </small>
+                  </div>
+                </div>
+              </a>
+            </div>
+          </div>
+        </th:block>
+      </th:block>
+      <th:block th:if="${topViewedPlants == null or topViewedPlants.isEmpty()}">
+        <div class="col-12 text-center text-muted py-5">
+          <i class="bi bi-inbox fs-1"></i>
+          <p class="mt-3">Chưa có cây dược liệu nào</p>
+        </div>
+      </th:block>
+    </div>
+    <div class="mt-5 text-center">
+      <a href="/plant" class="btn btn-outline-success px-4 py-2">
+        Xem tất cả cây dược liệu <i class="bi bi-arrow-right ms-2"></i>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Top Viewed Articles -->
+<section class="py-5 bg-light" th:if="${topViewedArticles != null and !topViewedArticles.isEmpty()}">
+  <div class="container">
+    <h2 class="text-center fw-bold mb-5 text-dark">
+      Bài viết nổi bật
+    </h2>
+    <div class="row g-4">
+      <th:block th:each="article : ${topViewedArticles}">
+        <div class="col-md-6 col-lg-4">
+          <div class="card h-100 border-0 shadow-sm hover-lift">
+            <a th:href="@{/article-detail/{slug}(slug=${article.slug})}" class="text-decoration-none">
+              <div class="card-img-wrapper">
+                <img th:src="${article.imageBanner != null ? article.imageBanner : '/image/placeholder.svg'}" 
+                     class="card-img-top" 
+                     th:alt="${article.title}"
+                     style="height: 200px; object-fit: cover;">
+              </div>
+              <div class="card-body d-flex flex-column">
+                <h5 class="card-title fw-semibold text-dark mb-2" th:text="${article.title}">Tiêu đề</h5>
+                <p class="card-text text-muted small flex-grow-1" th:text="${article.excerpt}">Mô tả ngắn</p>
+                <div class="mt-auto d-flex justify-content-between align-items-center">
+                  <small class="text-muted">
+                    <i class="bi bi-eye me-1"></i>
+                    <span th:text="${article.viewCount != null ? article.viewCount : 0}">0</span> lượt xem
+                  </small>
+                  <small class="text-muted" th:if="${article.publishedAt}">
+                    <i class="bi bi-calendar me-1"></i>
+                    <span th:text="${#temporals.format(article.publishedAt, 'dd/MM/yyyy')}">Ngày</span>
+                  </small>
+                </div>
+              </div>
+            </a>
+          </div>
+        </div>
+      </th:block>
+    </div>
+    <div class="mt-5 text-center">
+      <a href="/articles" class="btn btn-outline-success px-4 py-2">
+        Xem tất cả bài viết <i class="bi bi-arrow-right ms-2"></i>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="pt-5" id="footer-main">
+ 
+</footer>
+<th:block th:replace="user/chat :: chatMain">
+</th:block>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var input = document.getElementById('homePlantSearch');
+    if (!input) return;
+
+    function goSearch() {
+      var q = input.value.trim();
+      if (!q) return;
+      window.location.href = '/plant?search=' + encodeURIComponent(q);
+    }
+
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        goSearch();
+      }
+    });
+  });
+</script>
+</body>
+</html>
+
+
