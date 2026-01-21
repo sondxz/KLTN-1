@@ -667,11 +667,13 @@ body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
 /* Căn lề 2 bên cho phần mô tả nghiên cứu */
 .research-section .lead {
     text-align: justify;
+    text-align-last: justify;
     line-height: 1.8;
     font-size: 1.1rem;
     color: #495057;
     margin-bottom: 0;
     padding: 15px 0;
+    text-indent: 0;
 }
 
 /* CARD THÔNG TIN SIDEBAR */
@@ -713,16 +715,22 @@ body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
 /* Căn lề 2 bên cho phần nội dung chi tiết nghiên cứu */
 .research-content {
     text-align: justify;
+    text-align-last: justify;
     line-height: 1.8;
     font-size: 1rem;
     color: #495057;
+    text-indent: 0;
 }
 
 .research-content p {
     text-align: justify;
+    text-align-last: justify;
     line-height: 1.8;
     margin-bottom: 1.2rem;
     color: #495057;
+    text-indent: 0;
+    padding-left: 0;
+    padding-right: 0;
 }
 
 .research-content h1,
@@ -731,22 +739,28 @@ body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
 .research-content h4,
 .research-content h5,
 .research-content h6 {
-    text-align: left;
+    text-align: justify;
+    text-align-last: justify;
     margin-top: 1.5rem;
     margin-bottom: 1rem;
     color: #343a40;
+    text-indent: 0;
 }
 
 .research-content ul,
 .research-content ol {
-    text-align: left;
-    padding-left: 2rem;
+    text-align: justify;
+    padding-left: 0;
+    list-style-position: inside;
     margin-bottom: 1.2rem;
 }
 
 .research-content li {
     margin-bottom: 0.5rem;
     line-height: 1.8;
+    text-align: justify;
+    text-align-last: justify;
+    text-indent: 0;
 }
 
 .research-content img {
@@ -759,13 +773,16 @@ body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
 
 .research-content blockquote {
     border-left: 4px solid #007bff;
-    padding-left: 20px;
-    margin: 20px 0;
+    padding: 15px 20px;
+    margin: 20px auto;
     font-style: italic;
     color: #6c757d;
     background-color: #f8f9fa;
-    padding: 15px 20px;
     border-radius: 4px;
+    text-align: justify;
+    text-align-last: justify;
+    text-indent: 0;
+    max-width: 90%;
 }
 
 /* CARD CÂY THUỐC */

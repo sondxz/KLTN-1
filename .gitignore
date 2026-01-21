@@ -31,3 +31,13 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Application Properties (chứa API keys và secrets) ###
+src/main/resources/application.properties
+src/main/resources/application-local.properties
+src/main/resources/application-prod.properties
+
+### Environment Variables ###
+.env
+.env.local
+.env.production
