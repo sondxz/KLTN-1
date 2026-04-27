@@ -152,9 +152,8 @@ $( document ).ready(function() {
       <div class="col-md-3">
         <h3 class="mb-3">Liên hệ</h3>
         <ul class="list-unstyled">
-          <li><i class="bi bi-geo-alt-fill me-2"></i> Số 123, Đường ABC, Hà Nội</li>
-          <li><i class="bi bi-telephone-fill me-2"></i> +84 123 456 789</li>
-          <li><i class="bi bi-envelope-fill me-2"></i> info@duoclieuvn.com</li>
+          <li><i class="bi bi-telephone-fill me-2"></i> 0916893835</li>
+          <li><i class="bi bi-envelope-fill me-2"></i> htha@vnua.edu.vn</li>
         </ul>
       </div>
     </div>
