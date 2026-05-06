@@ -41,6 +41,9 @@ public class StatisticsService {
     @Autowired
     private DiseasesRepository diseasesRepository;
 
+    @Autowired
+    private FolkRemedyRepository folkRemedyRepository;
+
     /**
      * Lấy thống kê tổng quan - tối ưu bằng cách dùng COUNT queries
      */
@@ -58,11 +61,14 @@ public class StatisticsService {
         stats.setTotalResearch(researchRepository.count());
         stats.setTotalComments(commentRepository.count());
         stats.setTotalFamilies(familiesRepository.count());
+        stats.setTotalGenera(plantRepository.countDistinctGenus());
         stats.setTotalDiseases(diseasesRepository.count());
+        stats.setTotalFolkRemedies(folkRemedyRepository.count());
 
         // Trạng thái - dùng countBy queries
         stats.setPendingPlants(plantRepository.countByPlantStatus(PlantStatus.CHO_DUYET));
         stats.setPendingArticles(articleRepository.countByStatus(ArticleStatus.CHO_DUYET));
+        stats.setPendingFolkRemedies(folkRemedyRepository.countByStatus("pending"));
         stats.setActiveUsers(userRepository.countByActived(true));
         stats.setLockedUsers(userRepository.countByActived(false));
 

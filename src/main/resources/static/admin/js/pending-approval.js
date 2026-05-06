@@ -468,6 +468,146 @@ function renderPagination(currentPage, totalPages, paginationId, loadFunction) {
     document.getElementById(paginationId).innerHTML = mainpage;
 }
 
+// ========== REMEDIES ==========
+async function loadPendingRemedies(page) {
+    const q = document.getElementById("remedySearch")?.value || "";
+    var url = `/api/folk-remedies/admin/list?status=pending&page=${page}&size=${size}`;
+    if(q) {
+        url += `&search=${encodeURIComponent(q)}`;
+    }
+    
+    try {
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + token
+            }
+        });
+
+        if (!response.ok) {
+            toastr.error("Lỗi khi tải dữ liệu bài thuốc");
+            return;
+        }
+
+        const result = await response.json();
+        const list = result.content || [];
+        const totalPage = result.totalPages || 0;
+        const totalElements = result.totalElements || 0;
+
+        // Update count
+        document.getElementById("remediesCount").textContent = totalElements;
+
+        let main = '';
+        if (list.length === 0) {
+            main = '<tr><td colspan="5" class="text-center">Không có bài thuốc nào chờ duyệt</td></tr>';
+            document.getElementById("remediesTableBody").innerHTML = main;
+        } else {
+            for (let i = 0; i < list.length; i++) {
+                const d = list[i];
+                let desc = d.description || d.usageInstruction || 'Chưa cập nhật';
+                // Lọc bỏ HTML tag trong mô tả/cách dùng
+                desc = desc.replace(/<[^>]*>?/gm, '');
+                if (desc.length > 80) desc = desc.substring(0, 80) + '...';
+                
+                main += `
+                    <tr>
+                        <td class="align-middle"><span class="text-muted small">#${d.id}</span></td>
+                        <td class="align-middle">
+                            <div class="fw-semibold">${d.name}</div>
+                        </td>
+                        <td class="align-middle">
+                            <span class="text-muted small">${desc}</span>
+                        </td>
+                        <td class="align-middle">
+                            <small class="text-muted">
+                                <i class="bi bi-clock me-1"></i>${formatDate(d.createdAt)}
+                            </small>
+                        </td>
+                        <td class="align-middle">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button onclick="approveRemedy(${d.id})" 
+                                        class="btn btn-outline-success" 
+                                        title="Duyệt bài thuốc">
+                                    <i class="bi bi-check-lg"></i> Duyệt
+                                </button>
+                                <button onclick="rejectRemedy(${d.id})" 
+                                        class="btn btn-outline-danger" 
+                                        title="Từ chối bài thuốc">
+                                    <i class="bi bi-x-lg"></i> Từ chối
+                                </button>
+                                <a href="/admin/create-folk-remedy?id=${d.id}" 
+                                   class="btn btn-outline-primary" 
+                                   title="Xem chi tiết">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>`;
+            }
+            document.getElementById("remediesTableBody").innerHTML = main;
+        }
+        renderPagination(page, totalPage, "remediesPagination", loadPendingRemedies);
+    } catch (err) {
+        console.error(err);
+        toastr.error("Lỗi kết nối!");
+    }
+}
+
+async function approveRemedy(id) {
+    if (!confirm("Bạn có chắc chắn muốn duyệt bài thuốc này?")) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/folk-remedies/admin/approve?id=${id}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + token
+            }
+        });
+
+        if (checkResponseError(response)) {
+            return;
+        }
+
+        if (response.ok) {
+            toastr.success("Đã duyệt bài thuốc thành công!");
+            loadPendingRemedies(0);
+        } else {
+            toastr.error("Lỗi khi duyệt!");
+        }
+    } catch (err) {
+        toastr.error("Lỗi kết nối!");
+    }
+}
+
+async function rejectRemedy(id) {
+    if (!confirm("Bạn có chắc chắn muốn từ chối bài thuốc này?")) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/folk-remedies/admin/reject?id=${id}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + token
+            }
+        });
+
+        if (checkResponseError(response)) {
+            return;
+        }
+
+        if (response.ok) {
+            toastr.success("Đã từ chối bài thuốc thành công!");
+            loadPendingRemedies(0);
+        } else {
+            toastr.error("Lỗi khi từ chối!");
+        }
+    } catch (err) {
+        toastr.error("Lỗi kết nối!");
+    }
+}
 
 
 

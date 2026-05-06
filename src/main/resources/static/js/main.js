@@ -50,6 +50,7 @@ $( document ).ready(function() {
                 <ul class="dropdown-menu dropdown-menu-end">
                     ${isAdmin ? `
                     <li><a class="dropdown-item" href="/admin/list-plant"><i class="bi bi-flower1 me-2"></i>Cây dược liệu</a></li>
+                    <li><a class="dropdown-item" href="/admin/list-folk-remedies"><i class="bi bi-journal-medical me-2"></i>Bài thuốc</a></li>
                     <li><a class="dropdown-item" href="/admin/list-article"><i class="bi bi-file-text me-2"></i>Bài viết</a></li>
                     <li><a class="dropdown-item" href="/admin/list-user"><i class="bi bi-people me-2"></i>Người dùng</a></li>
                     <li><hr class="dropdown-divider"></li>
@@ -99,6 +100,7 @@ $( document ).ready(function() {
         <ul class="navbar-nav mx-auto mb-2 mb-lg-0 gap-lg-4">
           <li class="nav-item"><a class="nav-link active text-success fw-semibold border-bottom border-2 border-success" href="/index">Trang chủ</a></li>
           <li class="nav-item"><a class="nav-link" href="/plant">Cây dược liệu</a></li>
+          <li class="nav-item"><a class="nav-link" href="/folk-remedies">Bài thuốc</a></li>
           <li class="nav-item"><a class="nav-link" href="/articles">Bài viết</a></li>
           <li class="nav-item"><a class="nav-link" href="/research">Nghiên cứu</a></li>
           <li class="nav-item"><a class="nav-link" href="/experts">Chuyên gia</a></li>
@@ -132,6 +134,7 @@ $( document ).ready(function() {
         <ul class="list-unstyled">
           <li><a href="/">Trang chủ</a></li>
           <li><a href="/plants">Cây dược liệu</a></li>
+          <li><a href="/folk-remedies">Bài thuốc</a></li>
           <li><a href="/articles">Bài viết</a></li>
           <li><a href="/research">Nghiên cứu</a></li>
           <li><a href="/experts">Chuyên gia</a></li>

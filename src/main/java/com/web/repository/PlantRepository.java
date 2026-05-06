@@ -361,4 +361,7 @@ public interface PlantRepository extends JpaRepository<Plant, Long>, JpaSpecific
 
     @Query("select count(p) from Plant p where p.createdAt >= ?1")
     Long countByCreatedAtAfter(java.time.LocalDateTime date);
+    @Query("SELECT COUNT(DISTINCT p.genus) FROM Plant p WHERE p.genus IS NOT NULL AND TRIM(p.genus) != ''")
+    Long countDistinctGenus();
 }
+

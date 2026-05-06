@@ -104,6 +104,54 @@ function displayMainStats(stats) {
                 </div>
             </div>
         </div>
+        <div class="col-md-6 col-lg-3 mt-4">
+            <div class="card stat-card danger shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="stat-label">Tổng bài thuốc</div>
+                            <div class="stat-value text-danger">${formatNumber(stats.totalFolkRemedies || 0)}</div>
+                            <div class="stat-change text-muted">
+                                <i data-lucide="clock" style="width: 12px; height: 12px;"></i> Chờ duyệt: ${stats.pendingFolkRemedies || 0}
+                            </div>
+                        </div>
+                        <div class="bg-danger bg-opacity-10 rounded p-3">
+                            <i data-lucide="heart-pulse" class="text-danger" style="width: 32px; height: 32px;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3 mt-4">
+            <div class="card stat-card primary shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="stat-label">Họ thực vật</div>
+                            <div class="stat-value text-primary">${formatNumber(stats.totalFamilies || 0)}</div>
+                        </div>
+                        <div class="bg-primary bg-opacity-10 rounded p-3">
+                            <i data-lucide="layers" class="text-primary" style="width: 32px; height: 32px;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3 mt-4">
+            <div class="card stat-card info shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="stat-label">Chi thực vật</div>
+                            <div class="stat-value text-info">${formatNumber(stats.totalGenera || 0)}</div>
+                        </div>
+                        <div class="bg-info bg-opacity-10 rounded p-3">
+                            <i data-lucide="git-merge" class="text-info" style="width: 32px; height: 32px;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     `;
 
     document.getElementById('mainStatsCards').innerHTML = cardsHtml;
@@ -258,7 +306,7 @@ function drawContentChart(stats) {
     contentChart = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: ['Cây dược liệu', 'Bài viết', 'Nghiên cứu', 'Bình luận', 'Họ thực vật', 'Công dụng'],
+            labels: ['Cây dược liệu', 'Bài viết', 'Nghiên cứu', 'Bình luận', 'Họ thực vật', 'Chi thực vật', 'Bệnh lý', 'Bài thuốc'],
             datasets: [{
                 label: 'Số lượng',
                 data: [
@@ -267,7 +315,9 @@ function drawContentChart(stats) {
                     stats.totalResearch || 0,
                     stats.totalComments || 0,
                     stats.totalFamilies || 0,
-                    stats.totalDiseases || 0
+                    stats.totalGenera || 0,
+                    stats.totalDiseases || 0,
+                    stats.totalFolkRemedies || 0
                 ],
                 backgroundColor: [
                     'rgba(13, 110, 253, 0.7)',
@@ -275,7 +325,9 @@ function drawContentChart(stats) {
                     'rgba(255, 193, 7, 0.7)',
                     'rgba(220, 53, 69, 0.7)',
                     'rgba(13, 202, 240, 0.7)',
-                    'rgba(108, 117, 125, 0.7)'
+                    'rgba(102, 16, 242, 0.7)',
+                    'rgba(108, 117, 125, 0.7)',
+                    'rgba(253, 126, 20, 0.7)'
                 ],
                 borderColor: [
                     'rgba(13, 110, 253, 1)',
@@ -283,7 +335,9 @@ function drawContentChart(stats) {
                     'rgba(255, 193, 7, 1)',
                     'rgba(220, 53, 69, 1)',
                     'rgba(13, 202, 240, 1)',
-                    'rgba(108, 117, 125, 1)'
+                    'rgba(102, 16, 242, 1)',
+                    'rgba(108, 117, 125, 1)',
+                    'rgba(253, 126, 20, 1)'
                 ],
                 borderWidth: 2,
                 borderRadius: 6

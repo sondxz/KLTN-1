@@ -87,7 +87,8 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                         "/api/message/upload-file",
                         "/api/public/**",
                         "/api/*/public/**",
-                        "/api/expert/public/**"
+                        "/api/expert/public/**",
+                        "/api/folk-remedies/public/**"
                 ).permitAll()
                 .antMatchers("/api/admin/get-user-by-role", "/api/admin/addaccount", 
                              "/api/admin/delete-user-by-id", "/api/admin/lockOrUnlockUser", "/api/admin/export-users",
@@ -101,7 +102,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .antMatchers(org.springframework.http.HttpMethod.GET, "/admin/list-user", "/admin/create-user", 
                              "/admin/list-expert", "/admin/create-expert", "/admin/list-comment").permitAll()
                 .antMatchers(org.springframework.http.HttpMethod.GET, "/admin/**").permitAll()
-                .antMatchers(org.springframework.http.HttpMethod.GET, "/plant/**", "/articles/**", "/article-detail/**", "/plant-detail/**", "/experts/**", "/expert-detail/**", "/research/**", "/research-detail/**", "/about/**", "/index", "/", "/create-plant", "/create-article", "/my-account", "/user/messages").permitAll()
+                .antMatchers(org.springframework.http.HttpMethod.GET, "/plant/**", "/articles/**", "/article-detail/**", "/plant-detail/**", "/experts/**", "/expert-detail/**", "/research/**", "/research-detail/**", "/about/**", "/index", "/", "/create-plant", "/create-article", "/my-account", "/user/messages", "/folk-remedies/**").permitAll()
                 .antMatchers("/admin/list-user", "/admin/create-user").hasAuthority(Contains.ROLE_ADMIN)
                 .antMatchers("/admin/list-expert", "/admin/create-expert").hasAuthority(Contains.ROLE_ADMIN)
                 .antMatchers("/admin/list-comment").hasAuthority(Contains.ROLE_ADMIN)

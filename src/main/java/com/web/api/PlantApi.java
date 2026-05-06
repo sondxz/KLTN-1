@@ -50,6 +50,11 @@ public class PlantApi {
         return plantService.findAllName();
     }
 
+    @GetMapping("/public/all-list")
+    public List<PlantImp> getAllList() {
+        return plantService.findAllName();
+    }
+
     @PostMapping("/admin/create")
     public ResponseEntity<?> create(@RequestBody PlantRequestDto dto) {
         try {

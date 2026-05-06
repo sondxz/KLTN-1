@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DuocLieuVN - Bài thuốc dân gian</title>
+    <link rel="icon" type="image/png" href="/image/cay.jfif">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="/js/main.js"></script>
+    <script>
+      let currentPage = 0;
+      const pageSize = 12;
+
+      window.onload = function() {
+        loadRemedies(0);
+      }
+
+      function loadRemedies(page) {
+        currentPage = page;
+        const search = document.getElementById('param').value.trim();
+        const sort = document.getElementById('sort').value;
+        const params = new URLSearchParams({page: page, size: pageSize, sort: sort});
+        if (search) params.append('search', search);
+
+        fetch('/api/folk-remedies/public/list?' + params)
+            .then(res => res.json())
+            .then(data => {
+                renderGrid(data.content);
+                renderList(data.content);
+                renderPagination(data);
+            })
+            .catch(err => {
+                console.error(err);
+                document.getElementById('listData').innerHTML = '<div class="col-12 text-center py-5"><p class="text-danger">Lỗi tải dữ liệu. Vui lòng thử lại.</p></div>';
+            });
+      }
+
+      function renderGrid(remedies) {
+        const container = document.getElementById('listData');
+        if (!remedies || remedies.length === 0) {
+            container.innerHTML = '<div class="col-12 text-center py-5"><i class="bi bi-inbox text-muted" style="font-size:3rem;"></i><p class="mt-2 text-muted">Không tìm thấy bài thuốc nào.</p></div>';
+            return;
+        }
+
+        let html = '';
+        remedies.forEach(r => {
+            const desc = r.description ? (r.description.length > 120 ? r.description.substring(0, 120) + '...' : r.description) : 'Chưa có mô tả';
+            const plantNames = r.plants && r.plants.length > 0
+                ? r.plants.map(p => `<span class="badge bg-success bg-opacity-10 text-success me-1">${escapeHtml(p.name)}</span>`).join('')
+                : '<span class="text-muted small">Chưa liên kết cây</span>';
+
+            html += `
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 shadow-sm border-0">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title mb-2">
+                            <i class="bi bi-journal-medical text-success me-1"></i>
+                            <a href="/folk-remedies/${r.id}" class="text-decoration-none text-dark stretched-link">${escapeHtml(r.name)}</a>
+                        </h5>
+                        <div class="mb-2">${plantNames}</div>
+                        <p class="card-text text-muted small flex-grow-1">${escapeHtml(desc)}</p>
+                    </div>
+                </div>
+            </div>`;
+        });
+        container.innerHTML = html;
+      }
+
+      function renderList(remedies) {
+        const container = document.getElementById('listDataGrid');
+        if (!remedies || remedies.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        let html = '';
+        remedies.forEach(r => {
+            const desc = r.description ? (r.description.length > 200 ? r.description.substring(0, 200) + '...' : r.description) : 'Chưa có mô tả';
+            const plantNames = r.plants && r.plants.length > 0
+                ? r.plants.map(p => `<span class="badge bg-success bg-opacity-10 text-success me-1">${escapeHtml(p.name)}</span>`).join('')
+                : '';
+
+            html += `
+            <div class="card mb-3 shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-journal-medical text-success me-2"></i>
+                        <a href="/folk-remedies/${r.id}" class="text-decoration-none text-dark">${escapeHtml(r.name)}</a>
+                    </h5>
+                    <div class="mb-2">${plantNames}</div>
+                    <p class="card-text text-muted mb-0">${escapeHtml(desc)}</p>
+                </div>
+            </div>`;
+        });
+        container.innerHTML = html;
+      }
+
+      function renderPagination(data) {
+        const ul = document.getElementById('pageable');
+        if (data.totalPages <= 1) {
+            ul.innerHTML = '';
+            return;
+        }
+
+        let html = '';
+        html += `<li class="page-item ${data.first ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadRemedies(${currentPage-1});return false;">Trước</a></li>`;
+        for (let i = 0; i < data.totalPages; i++) {
+            html += `<li class="page-item ${i===currentPage?'active':''}"><a class="page-link" href="#" onclick="loadRemedies(${i});return false;">${i+1}</a></li>`;
+        }
+        html += `<li class="page-item ${data.last ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadRemedies(${currentPage+1});return false;">Sau</a></li>`;
+        ul.innerHTML = html;
+      }
+
+      function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+    </script>
+</head>
+<body>
+<header id="header-main"></header>
+
+<div class="container py-5">
+  <!-- Header -->
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
+    <div>
+      <h1 class="h3 fw-bold text-dark">Bài thuốc dân gian</h1>
+      <p class="text-muted">Kho tàng bài thuốc dân gian từ các loài cây dược liệu Việt Nam</p>
+    </div>
+  </div>
+
+  <!-- Search & Filters -->
+  <div class="bg-white p-4 rounded shadow-sm mb-4">
+    <div class="row g-3">
+      <div class="col-md-9">
+        <div class="position-relative">
+          <input onkeyup="loadRemedies(0)" id="param" type="text" class="form-control pe-5" placeholder="Tìm kiếm bài thuốc...">
+          <button class="btn btn-sm btn-link position-absolute end-0 top-50 translate-middle-y text-secondary">
+            <i class="bi bi-search"></i>
+          </button>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <select class="form-select" id="sort" onchange="loadRemedies(0)">
+          <option value="id,desc">Mới nhất</option>
+          <option value="id,asc">Cũ nhất</option>
+          <option value="name,asc">Tên A-Z</option>
+          <option value="name,desc">Tên Z-A</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <ul class="nav nav-tabs mb-4" id="viewTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="grid-tab" data-bs-toggle="tab" data-bs-target="#grid-view" type="button" role="tab">Lưới</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="list-tab" data-bs-toggle="tab" data-bs-target="#list-view" type="button" role="tab">Danh sách</button>
+    </li>
+  </ul>
+
+  <div class="tab-content" style="margin-bottom: 100px;">
+    <!-- Grid view -->
+    <div class="tab-pane fade show active" id="grid-view" role="tabpanel">
+      <div class="row g-4" id="listData">
+        <div class="col-12 text-center py-5">
+            <div class="spinner-border text-success" role="status"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- List view -->
+    <div class="tab-pane fade" id="list-view" role="tabpanel">
+      <div id="listDataGrid"></div>
+    </div>
+    
+    <nav style="margin-top: 30px;">
+      <ul class="pagination pagination-sm mb-0 justify-content-center" id="pageable"></ul>
+    </nav>
+  </div>
+</div>
+
+<footer class="pt-5" id="footer-main"></footer>
+<th:block th:replace="user/chat :: chatMain"></th:block>
+</body>
+</html>

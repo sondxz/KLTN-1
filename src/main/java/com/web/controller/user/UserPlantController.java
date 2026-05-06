@@ -1,6 +1,8 @@
 package com.web.controller.user;
 
+import com.web.entity.FolkRemedy;
 import com.web.entity.Plant;
+import com.web.service.FolkRemedyService;
 import com.web.service.PlantService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -12,12 +14,16 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.server.ResponseStatusException;
 
 import javax.servlet.http.HttpSession;
+import java.util.List;
 
 @Controller
 public class UserPlantController {
 
     @Autowired
     private PlantService plantService;
+
+    @Autowired
+    private FolkRemedyService folkRemedyService;
 
     @RequestMapping(value = {"/plant-detail/{slug}"}, method = RequestMethod.GET)
     public String plantDetail(Model model, @PathVariable String slug, HttpSession session) {
@@ -39,6 +45,16 @@ public class UserPlantController {
         }
         
         model.addAttribute("plant", plant);
+
+        // Thêm danh sách bài thuốc dân gian liên quan
+        try {
+            List<FolkRemedy> relatedRemedies = folkRemedyService.findByPlantId(plant.getId());
+            model.addAttribute("relatedRemedies", relatedRemedies);
+        } catch (Exception e) {
+            // Không làm gián đoạn nếu lỗi
+            model.addAttribute("relatedRemedies", java.util.Collections.emptyList());
+        }
+
         return "user/plant-detail.html";
     }
 }

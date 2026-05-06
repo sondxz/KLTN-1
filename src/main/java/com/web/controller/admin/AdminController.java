@@ -25,6 +25,11 @@ public class AdminController {
         return "admin/create-plant.html";
     }
 
+    @RequestMapping(value = {"/create-folk-remedy"}, method = RequestMethod.GET)
+    public String createFolkRemedy() {
+        return "admin/create-folk-remedy.html";
+    }
+
     @RequestMapping(value = {"/create-user"}, method = RequestMethod.GET)
     public String createUser() {
         return "admin/create-user.html";
@@ -58,6 +63,11 @@ public class AdminController {
     @RequestMapping(value = {"/list-diseases"}, method = RequestMethod.GET)
     public String listDiseases() {
         return "admin/list-diseases.html";
+    }
+
+    @RequestMapping(value = {"/list-folk-remedies"}, method = RequestMethod.GET)
+    public String listFolkRemedies() {
+        return "admin/list-folk-remedies.html";
     }
 
     @RequestMapping(value = {"/list-families"}, method = RequestMethod.GET)
@@ -104,4 +114,5 @@ public class AdminController {
     public String statistics() {
         return "admin/dashboard.html";
     }
+
 }

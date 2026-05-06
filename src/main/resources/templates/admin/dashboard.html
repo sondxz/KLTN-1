@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
@@ -74,6 +74,9 @@
               </h1>
               <p class="text-muted small mb-0">Tổng quan hệ thống và thống kê</p>
             </div>
+            <button onclick="syncRagData()" class="btn btn-outline-success d-flex align-items-center mt-3 mt-sm-0 me-2" id="btnSyncRag">
+              <i data-lucide="database" class="me-1"></i> Đồng bộ AI (RAG)
+            </button>
             <button onclick="loadDashboard()" class="btn btn-outline-primary d-flex align-items-center mt-3 mt-sm-0">
               <i data-lucide="refresh-cw" class="me-1"></i> Làm mới
             </button>
@@ -169,6 +172,42 @@
       </main>
     </div>
   </div>
+
+  <script>
+    function syncRagData() {
+        if(!confirm('Bạn có chắc chắn muốn đồng bộ dữ liệu RAG không? Quá trình này sẽ đọc lại toàn bộ Cây thuốc, Bài viết, Nghiên cứu và Bài thuốc dân gian để đưa vào Vector DB. Có thể mất vài phút!')) return;
+        
+        const btn = document.getElementById('btnSyncRag');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang đồng bộ...';
+        btn.disabled = true;
+        
+        fetch('/api/chat/admin/index-rag', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+            }
+        })
+        .then(async res => {
+            const data = await res.json().catch(() => ({}));
+            if(res.ok) {
+                toastr.success(`Đồng bộ thành công! Đã cập nhật ${data.totalChunks} đoạn dữ liệu.`);
+                console.log(data);
+            } else {
+                toastr.error('Lỗi đồng bộ: ' + (data.message || 'Vui lòng kiểm tra lại cấu hình Gemini API hoặc Database'));
+            }
+        })
+        .catch(err => {
+            toastr.error('Lỗi kết nối khi đồng bộ RAG');
+            console.error(err);
+        })
+        .finally(() => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            lucide.createIcons();
+        });
+    }
+  </script>
 </body>
 </html>
 

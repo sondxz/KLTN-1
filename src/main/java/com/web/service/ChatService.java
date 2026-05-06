@@ -7,7 +7,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
@@ -17,16 +16,19 @@ import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.sql.Date;
-import java.time.LocalDate;
 import java.util.*;
-import java.util.Base64;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.HashSet;
-import java.util.Set;
 
+/**
+ * Service xử lý chat với người dùng.
+ * 
+ * THAY ĐỔI CHÍNH:
+ * - Tự động detect request có hình ảnh → bắt buộc dùng Gemini (vision)
+ * - Request text thuần → dùng RAG pipeline (đã có dual AI bên trong)
+ * - Thêm retry cho Gemini vision calls
+ */
 @Service
 public class ChatService {
 
@@ -41,21 +43,35 @@ public class ChatService {
     @Autowired
     private PlantRepository plantRepository;
 
+    @Autowired
+    private RagPipelineService ragPipelineService;
+
     private static final String GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
     private static final Pattern IMAGE_URL_PATTERN = Pattern.compile("Ảnh kèm theo:\\s*(https?://\\S+)");
+    private static final Pattern DATA_URL_PATTERN = Pattern.compile("Ảnh kèm theo:\\s*(data:image/[^\\s]+)");
+
+    /** Số lần retry Gemini vision khi lỗi transient */
+    private static final int VISION_MAX_RETRIES = 2;
+
+    private final HttpClient sharedHttpClient = HttpClient.newBuilder()
+            .connectTimeout(java.time.Duration.ofSeconds(10))
+            .build();
 
 
     /**
-     * Gửi tin nhắn người dùng cùng với dữ liệu cây dược liệu đến API Gemini.
+     * Gửi tin nhắn người dùng — giờ dùng RAG Pipeline thay vì trực tiếp.
+     * Nếu có ảnh kèm → vẫn dùng flow nhận diện ảnh cũ (Gemini vision).
+     * Nếu text thuần → chuyển qua RAG pipeline 3 lớp.
+     *
      * @param userMessage Tin nhắn của người dùng.
-     * @return Phản hồi từ Gemini hoặc thông báo lỗi.
+     * @return Phản hồi từ RAG/Gemini hoặc thông báo lỗi.
      */
     public String chatWithGemini(String userMessage, HttpSession session) {
+        // Lưu lịch sử chat vào session
         if(session.getAttribute("history-chat") == null){
             session.setAttribute("Number", 1);
             session.setAttribute("history-chat", "Lịch sử chat của người dùng:\nCâu 1: "+userMessage+"\n");
         }
-
         else{
             String his = (String) session.getAttribute("history-chat");
             Integer num = (Integer) session.getAttribute("Number");
@@ -63,165 +79,69 @@ public class ChatService {
             session.setAttribute("Number", ++num);
             session.setAttribute("history-chat",his);
         }
-        String his = (String) session.getAttribute("history-chat");
+
         try {
-            String imageUrl = null;
-            Matcher matcher = IMAGE_URL_PATTERN.matcher(userMessage);
-            if (matcher.find()) {
-                imageUrl = matcher.group(1);
-                userMessage = userMessage.split("Ảnh kèm theo:")[0].trim();
-            }
-
-            if (imageUrl != null) {
-                return answerWithImageAndDatabase(userMessage, imageUrl, his);
-            }
-
-            List<Plant> plants = findRelevantPlants(userMessage);
-            final List<String> fieldsToExcludeByName = Arrays.asList(
-                    "description", "createdAt", "updatedAt", "createdBy", "updatedBy"
-            );
-            final String entityPackagePrefix = "com.web.entity";
-
-            Gson gson = new GsonBuilder()
-                    .setExclusionStrategies(new ExclusionStrategy() {
-                        @Override
-                        public boolean shouldSkipField(FieldAttributes f) {
-                            Class<?> fieldType = f.getDeclaredClass();
-                            if (Collection.class.isAssignableFrom(fieldType) ||
-                                    Map.class.isAssignableFrom(fieldType)) {
-                                return true;
-                            }
-                            if (fieldType.getName().startsWith(entityPackagePrefix) && !fieldType.equals(Plant.class)) {
-                                return true;
-                            }
-                            return fieldsToExcludeByName.contains(f.getName());
-                        }
-                        @Override
-                        public boolean shouldSkipClass(Class<?> clazz) {
-                            return false;
-                        }
-                    })
-                    .create();
-
-            String plantsJsonData = gson.toJson(plants);
-
-            if (userMessage.isEmpty() && imageUrl != null) {
-                userMessage = "Hãy xác định và phân tích cây dược liệu trong ảnh";
-            }
-            String prompt = """
-                Bạn là trợ lý AI của website quản lý cây dược liệu, trả lời bằng tiếng Việt, ngắn gọn, thân thiện, 
-                trả lời dạng HTML nhé, nếu có link ảnh hãy trả lời dạng thẻ img, set độ rộng 150px cho tôi nhé.
-                Các khả năng chính:
-                - Tìm kiếm cây dược liệu phù hợp
-                - Xác định cây dược liệu dựa vào link hình ảnh được cung cấp (nếu hình ảnh được gửi dạng link cloudinary)
-                - Xác định công dụng, cách dùng, nơi trồng của cây dược liệu
-                - Các câu hỏi khác thì tìm câu trả lời từ các nguồn khác database
-                Đây là lịch sử câu hỏi trước đó của người dùng:
-                %s
-                
-                Dưới đây là **dữ liệu cây dược liệu** từ database dạng json. Hãy sử dụng thông tin này để trả lời các câu hỏi liên quan đến cây dược liệu một cách chính xác nhất có thể:
-
-                %s
-
-                Câu hỏi của người dùng: %s
-                """.formatted(his, plantsJsonData, userMessage);
-
-            if (imageUrl != null) {
-                prompt += "\n\n*** LƯU Ý: Hãy phân tích hình ảnh tại link sau để trả lời: " + imageUrl + " ***";
-            }
-            JsonObject root = new JsonObject();
-            JsonArray contents = new JsonArray();
-            JsonObject userMsg = new JsonObject();
-            userMsg.addProperty("role", "user");
-
-            JsonArray parts = new JsonArray();
-            JsonObject partText = new JsonObject();
-            partText.addProperty("text", prompt);
-            parts.add(partText);
-
-            if (imageUrl != null) {
-                JsonObject imagePart = buildImagePart(imageUrl);
-                if (imagePart != null) {
-                    parts.add(imagePart);
-                }
-            }
-
-            userMsg.add("parts", parts);
-            contents.add(userMsg);
-
-            JsonObject generationConfig = new JsonObject();
-            generationConfig.addProperty("temperature", 1);
-            root.add("generationConfig", generationConfig);
-            root.add("contents", contents);
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(GEMINI_URL + "?key=" + geminiApiKey))
-                    .header("Content-Type", "application/json")
-                    .timeout(java.time.Duration.ofSeconds(geminiTimeoutSeconds))
-                    .POST(HttpRequest.BodyPublishers.ofString(root.toString()))
-                    .build();
-
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(java.time.Duration.ofSeconds(10))
-                    .build();
+            // Auto-detect hình ảnh: kiểm tra cả URL và data URL
+            String imageUrl = detectImageUrl(userMessage);
             
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() != 200) {
-                log.error("Gemini API returned status code: {}", response.statusCode());
-                return "❌ Lỗi kết nối với AI. Vui lòng thử lại sau.";
+            if (imageUrl != null) {
+                // Tách phần text ra khỏi URL ảnh
+                String cleanMessage = userMessage.split("Ảnh kèm theo:")[0].trim();
+                String his = (String) session.getAttribute("history-chat");
+                
+                // Có hình ảnh → BẮT BUỘC dùng Gemini (Cloudflare không hỗ trợ vision)
+                log.info("Phát hiện ảnh kèm theo, sử dụng Gemini Vision");
+                return answerWithImageAndDatabase(cleanMessage, imageUrl, his);
             }
 
-            JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+            // ===== Text thuần → RAG PIPELINE (đã tích hợp dual AI) =====
+            return ragPipelineService.processQuestion(userMessage);
 
-            if (json.has("candidates")) {
-                JsonArray candidates = json.getAsJsonArray("candidates");
-                if (candidates.size() > 0) {
-                    JsonObject candidate = candidates.get(0).getAsJsonObject();
-                    if (candidate.has("content")) {
-                        JsonObject content = candidate.getAsJsonObject("content");
-                        if (content.has("parts")) {
-                            JsonArray responseParts = content.getAsJsonArray("parts");
-                            if (responseParts.size() > 0) {
-                                JsonObject part = responseParts.get(0).getAsJsonObject();
-                                if (part.has("text")) {
-                                    return part.get("text").getAsString();
-                                }
-                            }
-                        }
-                    }
-                }
-                log.warn("Gemini response structure unexpected");
-                return "⚠️ Không nhận được phản hồi hợp lệ từ AI.";
-            } else if (json.has("error")) {
-                log.error("Gemini API error");
-                return "❌ Lỗi xử lý yêu cầu. Vui lòng thử lại sau.";
-            } else {
-                log.warn("Unexpected Gemini response");
-                return "⚠️ Không nhận được phản hồi từ AI. Vui lòng thử lại.";
-            }
-
-        } catch (java.net.http.HttpTimeoutException e) {
-            log.error("Gemini API timeout", e);
-            return "⏱️ Yêu cầu quá thời gian chờ. Vui lòng thử lại sau.";
         } catch (Exception e) {
             log.error("Error in chatWithGemini", e);
             return "❌ Lỗi hệ thống. Vui lòng thử lại sau.";
         }
     }
 
+    /**
+     * Auto-detect URL hoặc data URL của ảnh trong message.
+     * Hỗ trợ cả http(s) URL và data:image base64.
+     * 
+     * @return URL ảnh hoặc null nếu không có
+     */
+    private String detectImageUrl(String message) {
+        if (message == null) return null;
+        
+        // Thử HTTP/HTTPS URL trước
+        Matcher httpMatcher = IMAGE_URL_PATTERN.matcher(message);
+        if (httpMatcher.find()) {
+            return httpMatcher.group(1);
+        }
+        
+        // Thử data URL
+        Matcher dataMatcher = DATA_URL_PATTERN.matcher(message);
+        if (dataMatcher.find()) {
+            return dataMatcher.group(1);
+        }
+        
+        return null;
+    }
+
+    // ================================================
+    // GIỮ NGUYÊN: Logic xử lý ảnh (Gemini Vision)
+    // Thêm retry cho Gemini API calls
+    // ================================================
+
     private JsonObject buildImagePart(String imageUrl) {
         if (imageUrl.startsWith("data:image")) {
             return buildImagePartFromDataUrl(imageUrl);
         }
         try {
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(java.time.Duration.ofSeconds(10))
-                    .build();
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(imageUrl))
                     .timeout(java.time.Duration.ofSeconds(15))
                     .build();
-            HttpResponse<byte[]> res = client.send(req, HttpResponse.BodyHandlers.ofByteArray());
+            HttpResponse<byte[]> res = sharedHttpClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
             if (res.statusCode() >= 300) return null;
             HttpHeaders headers = res.headers();
             String mime = headers.firstValue("content-type").orElse("image/jpeg");
@@ -233,6 +153,7 @@ public class ChatService {
             part.add("inline_data", inline);
             return part;
         } catch (Exception ex) {
+            log.warn("Lỗi download ảnh: {}", ex.getMessage());
             return null;
         }
     }
@@ -287,19 +208,11 @@ public class ChatService {
 
             root.add("contents", contents);
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(GEMINI_URL + "?key=" + geminiApiKey))
-                    .header("Content-Type", "application/json")
-                    .timeout(java.time.Duration.ofSeconds(geminiTimeoutSeconds))
-                    .POST(HttpRequest.BodyPublishers.ofString(root.toString()))
-                    .build();
+            // Gọi Gemini với retry
+            String responseBody = callGeminiRawWithRetry(root);
+            if (responseBody == null) return null;
 
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(java.time.Duration.ofSeconds(10))
-                    .build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-            JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+            JsonObject json = JsonParser.parseString(responseBody).getAsJsonObject();
             if (!json.has("candidates")) {
                 return null;
             }
@@ -311,7 +224,12 @@ public class ChatService {
                     .get("text").getAsString();
 
             try {
-                JsonObject obj = JsonParser.parseString(text).getAsJsonObject();
+                // Thử parse JSON từ response
+                String cleanText = text.trim();
+                if (cleanText.startsWith("```")) {
+                    cleanText = cleanText.replaceAll("```json\\s*", "").replaceAll("```\\s*", "").trim();
+                }
+                JsonObject obj = JsonParser.parseString(cleanText).getAsJsonObject();
                 if (obj.has("common_name")) {
                     return obj.get("common_name").getAsString();
                 }
@@ -319,6 +237,7 @@ public class ChatService {
                     return obj.get("scientific_name").getAsString();
                 }
             } catch (Exception e) {
+                // Không parse được JSON → trả text thô
             }
             return text;
         } catch (Exception e) {
@@ -430,6 +349,7 @@ public class ChatService {
                 }
             }
             
+            // Build Gemini request with image — BẮT BUỘC Gemini vì cần vision
             JsonObject root = new JsonObject();
             JsonArray contents = new JsonArray();
             JsonObject userMsg = new JsonObject();
@@ -453,24 +373,13 @@ public class ChatService {
             root.add("generationConfig", generationConfig);
             root.add("contents", contents);
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(GEMINI_URL + "?key=" + geminiApiKey))
-                    .header("Content-Type", "application/json")
-                    .timeout(java.time.Duration.ofSeconds(geminiTimeoutSeconds))
-                    .POST(HttpRequest.BodyPublishers.ofString(root.toString()))
-                    .build();
-
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(java.time.Duration.ofSeconds(10))
-                    .build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() != 200) {
-                log.error("Gemini API returned status code: {}", response.statusCode());
+            // Gọi Gemini với retry
+            String responseBody = callGeminiRawWithRetry(root);
+            if (responseBody == null) {
                 return "❌ Lỗi kết nối với AI. Vui lòng thử lại sau.";
             }
 
-            JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+            JsonObject json = JsonParser.parseString(responseBody).getAsJsonObject();
             if (json.has("candidates")) {
                 JsonArray candidates = json.getAsJsonArray("candidates");
                 if (candidates.size() > 0) {
@@ -497,190 +406,64 @@ public class ChatService {
                 log.warn("Unexpected Gemini response");
                 return "⚠️ Không nhận được phản hồi từ AI. Vui lòng thử lại.";
             }
-        } catch (java.net.http.HttpTimeoutException e) {
-            log.error("Gemini API timeout", e);
-            return "⏱️ Yêu cầu quá thời gian chờ. Vui lòng thử lại sau.";
         } catch (Exception e) {
             log.error("answerWithImageAndDatabase error", e);
             return "❌ Lỗi hệ thống khi xử lý ảnh. Vui lòng thử lại sau.";
         }
     }
 
-    private String answerImageOnly(String userMessage, String imageUrl, String history) {
-        try {
-            if (userMessage == null || userMessage.isBlank()) {
-                userMessage = "Hãy cho tôi biết đây là cây gì trong ảnh, tên thường gọi và tên khoa học (nếu có).";
-            }
-
-            String prompt = """
-                Bạn là chuyên gia thực vật. Trả lời bằng tiếng Việt, ngắn gọn, thân thiện, dạng HTML.
-                Hãy nhìn vào hình ảnh kèm theo và cho biết đây là cây gì, tên thường gọi và tên khoa học (nếu biết),
-                kèm mô tả ngắn về đặc điểm nhận dạng chính.
-
-                Lịch sử chat trước đó (nếu có):
-                %s
-
-                Câu hỏi của người dùng: %s
-                """.formatted(history, userMessage);
-
-            JsonObject root = new JsonObject();
-            JsonArray contents = new JsonArray();
-            JsonObject userMsg = new JsonObject();
-            userMsg.addProperty("role", "user");
-
-            JsonArray parts = new JsonArray();
-            JsonObject partText = new JsonObject();
-            partText.addProperty("text", prompt);
-            parts.add(partText);
-
-            JsonObject imagePart = buildImagePart(imageUrl);
-            if (imagePart != null) {
-                parts.add(imagePart);
-            }
-
-            userMsg.add("parts", parts);
-            contents.add(userMsg);
-
-            JsonObject generationConfig = new JsonObject();
-            generationConfig.addProperty("temperature", 0.5);
-            root.add("generationConfig", generationConfig);
-            root.add("contents", contents);
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(GEMINI_URL + "?key=" + geminiApiKey))
-                    .header("Content-Type", "application/json")
-                    .timeout(java.time.Duration.ofSeconds(geminiTimeoutSeconds))
-                    .POST(HttpRequest.BodyPublishers.ofString(root.toString()))
-                    .build();
-
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(java.time.Duration.ofSeconds(10))
-                    .build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() != 200) {
-                log.error("Gemini API returned status code: {}", response.statusCode());
-                return "❌ Lỗi kết nối với AI. Vui lòng thử lại sau.";
-            }
-
-            JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
-            if (json.has("candidates")) {
-                JsonArray candidates = json.getAsJsonArray("candidates");
-                if (candidates.size() > 0) {
-                    JsonObject candidate = candidates.get(0).getAsJsonObject();
-                    if (candidate.has("content")) {
-                        JsonObject content = candidate.getAsJsonObject("content");
-                        if (content.has("parts")) {
-                            JsonArray responseParts = content.getAsJsonArray("parts");
-                            if (responseParts.size() > 0) {
-                                JsonObject part = responseParts.get(0).getAsJsonObject();
-                                if (part.has("text")) {
-                                    return part.get("text").getAsString();
-                                }
-                            }
-                        }
-                    }
-                }
-                log.warn("Gemini response structure unexpected");
-                return "⚠️ Không nhận được phản hồi hợp lệ từ AI.";
-            } else if (json.has("error")) {
-                log.error("Gemini API error");
-                return "❌ Lỗi xử lý yêu cầu. Vui lòng thử lại sau.";
-            } else {
-                log.warn("Unexpected Gemini response");
-                return "⚠️ Không nhận được phản hồi từ AI. Vui lòng thử lại.";
-            }
-        } catch (java.net.http.HttpTimeoutException e) {
-            log.error("Gemini API timeout", e);
-            return "⏱️ Yêu cầu quá thời gian chờ. Vui lòng thử lại sau.";
-        } catch (Exception e) {
-            log.error("answerImageOnly error", e);
-            return "❌ Lỗi hệ thống khi xử lý ảnh. Vui lòng thử lại sau.";
-        }
-    }
-
     /**
-     * Tìm các cây dược liệu liên quan đến câu hỏi của người dùng (Semantic Search)
-     * Thay vì lấy tất cả plants, chỉ lấy 10-15 cây liên quan nhất
-     * Giúp giảm token usage và tăng tốc độ response
+     * Gọi Gemini API với request body đã build sẵn, có retry.
+     * Dùng cho cả identify image và answer with image.
      * 
-     * @param userMessage Câu hỏi của người dùng
-     * @return Danh sách các cây dược liệu liên quan (tối đa 15 cây)
+     * @param requestBody JsonObject đã build sẵn (contents, generationConfig, etc.)
+     * @return Response body string, hoặc null nếu lỗi sau retry
      */
-    private List<Plant> findRelevantPlants(String userMessage) {
-        if (userMessage == null || userMessage.trim().isEmpty()) {
-            return plantRepository.findAll(PageRequest.of(0, 5)).getContent();
-        }
-
-        try {
-            String normalizedQuery = userMessage.trim().toLowerCase()
-                    .replaceAll("[^a-z0-9\\sàáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]", " ")
-                    .replaceAll("\\s+", " ")
-                    .trim();
-
-            if (!normalizedQuery.isEmpty() && normalizedQuery.length() >= 2) {
-                List<Plant> fullTextResults = plantRepository.findRelevantPlantsFullText(normalizedQuery);
-                if (!fullTextResults.isEmpty()) {
-                    return fullTextResults;
-                }
-            }
-        } catch (Exception e) {
-            log.warn("FULLTEXT search failed, falling back to keyword search: {}", e.getMessage());
-        }
-
-        Set<Plant> relevantPlants = new HashSet<>();
-        String[] keywords = userMessage.toLowerCase()
-                .replaceAll("[^a-z0-9\\sàáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]", " ")
-                .split("\\s+");
-
-        Set<String> stopWords = new HashSet<>(Arrays.asList(
-                "cây", "cay", "cỏ", "co", "lá", "la", "rễ", "re", "hoa", "quả", "qua",
-                "dược", "duoc", "liệu", "lieu", "thuốc", "thuoc", "là", "la", "của", "cua",
-                "và", "va", "có", "co", "để", "de", "cho", "với", "voi", "theo", "từ", "tu"
-        ));
-
-        for (String keyword : keywords) {
-            keyword = keyword.trim();
-            if (keyword.length() < 2 || stopWords.contains(keyword)) {
-                continue;
-            }
-
+    private String callGeminiRawWithRetry(JsonObject requestBody) {
+        for (int attempt = 1; attempt <= VISION_MAX_RETRIES; attempt++) {
             try {
-                relevantPlants.addAll(plantRepository.findByNameContainingIgnoreCase(keyword));
-                relevantPlants.addAll(plantRepository.findByScientificNameContainingIgnoreCase(keyword));
-                relevantPlants.addAll(plantRepository.findByOtherNamesContainingIgnoreCase(keyword));
-                if (isMedicinalKeyword(keyword)) {
-                    relevantPlants.addAll(plantRepository.findByMedicinalUsesContainingIgnoreCase(keyword));
-                    relevantPlants.addAll(plantRepository.findByIndicationsContainingIgnoreCase(keyword));
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(GEMINI_URL + "?key=" + geminiApiKey))
+                        .header("Content-Type", "application/json")
+                        .timeout(java.time.Duration.ofSeconds(geminiTimeoutSeconds))
+                        .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
+                        .build();
+
+                HttpResponse<String> response = sharedHttpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+                if (response.statusCode() == 200) {
+                    return response.body();
                 }
+
+                // Retryable status
+                if (response.statusCode() == 429 || response.statusCode() >= 500) {
+                    log.warn("Gemini Vision API status {} (attempt {}/{}), retry...",
+                            response.statusCode(), attempt, VISION_MAX_RETRIES);
+                } else {
+                    // Non-retryable
+                    log.error("Gemini Vision API returned status {}", response.statusCode());
+                    return null;
+                }
+
+            } catch (java.net.http.HttpTimeoutException e) {
+                log.warn("Gemini Vision API timeout (attempt {}/{})", attempt, VISION_MAX_RETRIES);
             } catch (Exception e) {
-                log.warn("Error searching for keyword '{}': {}", keyword, e.getMessage());
+                log.error("Gemini Vision API error (attempt {}/{}): {}", attempt, VISION_MAX_RETRIES, e.getMessage());
+                return null; // Non-retryable
+            }
+
+            // Exponential backoff: 2s, 4s
+            if (attempt < VISION_MAX_RETRIES) {
+                try {
+                    Thread.sleep(2000L * attempt);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return null;
+                }
             }
         }
 
-        if (relevantPlants.isEmpty()) {
-            return plantRepository.findAll(PageRequest.of(0, 5)).getContent();
-        }
-
-        return relevantPlants.stream()
-                .limit(15)
-                .collect(Collectors.toList());
-    }
-
-    private boolean isMedicinalKeyword(String keyword) {
-        String[] medicinalWords = {
-            "chữa", "chua", "điều", "dieu", "trị", "tri", "công", "cong", 
-            "dụng", "dung", "tác", "tac", "bệnh", "benh", "thuốc", "thuoc",
-            "dược", "duoc", "liệu", "lieu", "cây", "cay", "thuốc", "thuoc",
-            "hoạt", "hoat", "chất", "chat", "thành", "thanh", "phần", "phan"
-        };
-        
-        String lowerKeyword = keyword.toLowerCase();
-        for (String word : medicinalWords) {
-            if (lowerKeyword.contains(word) || word.contains(lowerKeyword)) {
-                return true;
-            }
-        }
-        return false;
+        log.error("Gemini Vision API thất bại sau {} lần retry", VISION_MAX_RETRIES);
+        return null;
     }
 }

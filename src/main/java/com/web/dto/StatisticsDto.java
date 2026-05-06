@@ -22,11 +22,14 @@ public class StatisticsDto {
     private Long totalResearch;
     private Long totalComments;
     private Long totalFamilies;
+    private Long totalGenera;
     private Long totalDiseases;
+    private Long totalFolkRemedies;
     
     // Trạng thái
     private Long pendingPlants;
     private Long pendingArticles;
+    private Long pendingFolkRemedies;
     private Long activeUsers;
     private Long lockedUsers;
     

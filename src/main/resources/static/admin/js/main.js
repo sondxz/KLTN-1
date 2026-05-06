@@ -24,6 +24,7 @@ $( document ).ready(function() {
         <a href="/index" class="nav-link"><i data-lucide="home" class="me-2"></i>Trang chủ</a>
         <a href="/admin/statistics" class="nav-link"><i data-lucide="bar-chart-2" class="me-2"></i>Thống kê</a>
         <a href="/admin/list-plant" class="nav-link"><i data-lucide="leaf" class="me-2"></i>Cây dược liệu</a>
+        <a href="/admin/list-folk-remedies" class="nav-link"><i data-lucide="clipboard-list" class="me-2"></i>Bài thuốc dân gian</a>
         <a href="/admin/list-article" class="nav-link"><i data-lucide="file-text" class="me-2"></i>Bài viết</a>
         <a href="/admin/pending-approval" class="nav-link"><i data-lucide="check-circle" class="me-2"></i>Chờ duyệt</a>
         <a href="/admin/list-comment" class="nav-link"><i data-lucide="message-circle" class="me-2"></i>Bình luận</a>
@@ -35,6 +36,7 @@ $( document ).ready(function() {
     var expertMenuItems = `
         <a href="/index" class="nav-link"><i data-lucide="home" class="me-2"></i>Trang chủ</a>
         <a href="/admin/list-plant" class="nav-link"><i data-lucide="leaf" class="me-2"></i>Cây dược liệu</a>
+        <a href="/admin/list-folk-remedies" class="nav-link"><i data-lucide="clipboard-list" class="me-2"></i>Bài thuốc dân gian</a>
         <a href="/admin/list-article" class="nav-link"><i data-lucide="file-text" class="me-2"></i>Bài viết</a>
         <a href="/admin/pending-approval" class="nav-link"><i data-lucide="check-circle" class="me-2"></i>Chờ duyệt</a>
         <a href="/admin/list-research" class="nav-link"><i data-lucide="book-open" class="me-2"></i>Nghiên cứu</a>
