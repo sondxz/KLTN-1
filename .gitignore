@@ -41,3 +41,4 @@ src/main/resources/application-prod.properties
 .env
 .env.local
 .env.production
+cayduoclieu.sql
