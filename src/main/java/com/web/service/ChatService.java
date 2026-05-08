@@ -297,7 +297,7 @@ public class ChatService {
                         .create();
                 plantsJsonData = gson.toJson(plantsFromDB);
                 prompt = """
-                    Bạn là trợ lý AI của website quản lý cây dược liệu, trả lời bằng tiếng Việt, ngắn gọn, thân thiện, dạng HTML.
+                    Bạn là trợ lý AI của website quản lý cây dược liệu. Chỉ trả lời bằng tiếng Việt, dạng HTML.
                     
                     Tôi đã nhận diện được cây trong ảnh có thể là: %s
                     Và đã tìm thấy thông tin trong database của hệ thống.
@@ -305,47 +305,49 @@ public class ChatService {
                     Lịch sử chat trước đó:
                     %s
                     
-                    Dưới đây là **dữ liệu cây dược liệu** từ database dạng JSON. Hãy sử dụng thông tin này để trả lời chính xác:
+                    Dưới đây là **dữ liệu cây dược liệu** từ database dạng JSON:
                     %s
                     
                     Câu hỏi của người dùng: %s
                     
-                    *** LƯU Ý: Hãy phân tích hình ảnh kèm theo để xác nhận và bổ sung thông tin. Nếu thông tin trong database khác với hình ảnh, hãy đề cập đến điều đó.
+                    Quy tắc trả lời BẮT BUỘC:
+                    1. TUYỆT ĐỐI CHỈ SỬ DỤNG thông tin từ dữ liệu JSON được cung cấp ở trên để trả lời. Không được bịa đặt, tự suy diễn hay sử dụng tri thức nền của bạn.
+                    2. Nếu thông tin người dùng hỏi KHÔNG CÓ trong dữ liệu JSON, hãy nói rõ: "Thông tin này hiện chưa có trong cơ sở dữ liệu của hệ thống."
+                    3. Không cung cấp bất kỳ thông tin nào nằm ngoài dữ liệu được cung cấp.
                     """.formatted(identifiedPlantName, history, plantsJsonData, 
-                            userMessage != null && !userMessage.isBlank() ? userMessage : "Hãy phân tích và xác định cây dược liệu trong ảnh");
+                            userMessage != null && !userMessage.isBlank() ? userMessage : "Hãy cho tôi biết thông tin về cây này từ cơ sở dữ liệu.");
             } else {
                 if (identifiedPlantName != null && !identifiedPlantName.trim().isEmpty()) {
                     prompt = """
-                        Bạn là chuyên gia thực vật. Trả lời bằng tiếng Việt, ngắn gọn, thân thiện, dạng HTML.
+                        Bạn là trợ lý AI của website quản lý cây dược liệu. Trả lời bằng tiếng Việt, dạng HTML.
                         
                         Tôi đã nhận diện được cây trong ảnh có thể là: %s
-                        Tuy nhiên, cây này không có trong database của hệ thống.
+                        Tuy nhiên, cây này KHÔNG CÓ TRONG CƠ SỞ DỮ LIỆU của hệ thống.
                         
                         Lịch sử chat trước đó:
                         %s
                         
                         Câu hỏi của người dùng: %s
                         
-                        Hãy sử dụng tri thức nền của bạn để phân tích hình ảnh và cung cấp thông tin về cây này:
-                        - Tên thường gọi và tên khoa học (nếu biết)
-                        - Đặc điểm nhận dạng chính
-                        - Công dụng và cách sử dụng (nếu biết)
-                        - Lưu ý: Nếu bạn không chắc chắn, hãy nói rõ điều đó.
+                        Quy tắc trả lời BẮT BUỘC:
+                        1. Hãy thông báo cho người dùng biết hệ thống nhận diện được cây có thể là "%s" nhưng hiện tại chưa có thông tin về cây này trong cơ sở dữ liệu.
+                        2. TUYỆT ĐỐI KHÔNG cung cấp thêm bất kỳ thông tin nào về đặc điểm, công dụng, hay tên khoa học từ tri thức nền của bạn. Chỉ trả lời dựa trên dữ liệu của hệ thống, mà ở đây là không có.
                         """.formatted(identifiedPlantName, history, 
-                                userMessage != null && !userMessage.isBlank() ? userMessage : "Hãy phân tích và xác định cây dược liệu trong ảnh");
+                                userMessage != null && !userMessage.isBlank() ? userMessage : "Đây là cây gì?", identifiedPlantName);
                 } else {
                     prompt = """
-                        Bạn là chuyên gia thực vật. Trả lời bằng tiếng Việt, ngắn gọn, thân thiện, dạng HTML.
+                        Bạn là trợ lý AI của website quản lý cây dược liệu. Trả lời bằng tiếng Việt, dạng HTML.
                         
                         Lịch sử chat trước đó:
                         %s
                         
                         Câu hỏi của người dùng: %s
                         
-                        Hãy nhìn vào hình ảnh kèm theo và cho biết đây là cây gì, tên thường gọi và tên khoa học (nếu biết),
-                        kèm mô tả ngắn về đặc điểm nhận dạng chính.
+                        Quy tắc trả lời BẮT BUỘC:
+                        1. Hãy nói với người dùng: "Tôi không thể nhận diện được cây trong ảnh và không tìm thấy thông tin trong cơ sở dữ liệu."
+                        2. TUYỆT ĐỐI KHÔNG cố gắng đoán bừa hay tự nghĩ ra thông tin để trả lời.
                         """.formatted(history, 
-                                userMessage != null && !userMessage.isBlank() ? userMessage : "Hãy phân tích và xác định cây dược liệu trong ảnh");
+                                userMessage != null && !userMessage.isBlank() ? userMessage : "Đây là cây gì?");
                 }
             }
             
