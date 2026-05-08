@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cayduoclieu-app
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-db:3306/cayduoclieu?createDatabaseIfNotExist=true&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=123456
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      # Add other environment variables here if needed
+      # - CLOUDFLARE_WORKER_URL=https://restless-poetry-0bc8.hoangsonnguyen204.workers.dev/
+      # - CLOUDFLARE_WORKER_API_KEY=123456
+      # - SECURITY_JWT_SECRET=change-me-in-prod
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  mysql-db:
+    image: mysql:8.0
+    container_name: cayduoclieu-mysql
+    ports:
+      - "3307:3306" # Map to 3307 on host to avoid conflict with local MySQL if installed
+    environment:
+      - MYSQL_ROOT_PASSWORD=123456
+      - MYSQL_DATABASE=cayduoclieu
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./cayduoclieu.sql:/docker-entrypoint-initdb.d/cayduoclieu.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
+
+networks:
+  app-network:
+    driver: bridge
