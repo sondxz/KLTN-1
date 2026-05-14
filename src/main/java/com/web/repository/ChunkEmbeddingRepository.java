@@ -14,8 +14,23 @@ import java.util.List;
 public interface ChunkEmbeddingRepository extends JpaRepository<ChunkEmbedding, Long> {
 
     /**
-     * Tìm chunk bằng Full-Text Search trên chunk_text
-     * Trả về top N kết quả có điểm FTS cao nhất
+     * Tìm chunk bằng Full-Text Search trên chunk_text (BOOLEAN MODE — kiểm soát tốt hơn).
+     * BOOLEAN MODE yêu cầu từ khóa phải xuất hiện, tránh partial match quá thoáng.
+     * Trả về top N kết quả có điểm FTS cao nhất.
+     */
+    @Query(value = """
+            SELECT ce.*, 
+                   MATCH(ce.chunk_text) AGAINST(:query IN BOOLEAN MODE) AS fts_score
+            FROM chunk_embeddings ce
+            WHERE MATCH(ce.chunk_text) AGAINST(:query IN BOOLEAN MODE)
+            ORDER BY fts_score DESC
+            LIMIT :limitCount
+            """, nativeQuery = true)
+    List<ChunkEmbedding> findByFullTextSearchBoolean(@Param("query") String query, @Param("limitCount") int limitCount);
+
+    /**
+     * Tìm chunk bằng Full-Text Search (NATURAL LANGUAGE MODE — fallback).
+     * Dùng khi BOOLEAN MODE không trả về kết quả nào.
      */
     @Query(value = """
             SELECT ce.*, 
@@ -26,6 +41,20 @@ public interface ChunkEmbeddingRepository extends JpaRepository<ChunkEmbedding, 
             LIMIT :limitCount
             """, nativeQuery = true)
     List<ChunkEmbedding> findByFullTextSearch(@Param("query") String query, @Param("limitCount") int limitCount);
+
+    /**
+     * Tìm chunk theo entityName chính xác (case-insensitive).
+     * Dùng cho Entity Verification — kiểm tra xem thực thể có trong DB không.
+     */
+    @Query("SELECT ce FROM ChunkEmbedding ce WHERE LOWER(ce.entityName) = LOWER(:name)")
+    List<ChunkEmbedding> findByEntityNameIgnoreCase(@Param("name") String name);
+
+    /**
+     * Tìm chunk theo entityName chứa từ khóa (LIKE).
+     * Dùng để tìm gợi ý cây tương tự khi không có exact match.
+     */
+    @Query("SELECT ce FROM ChunkEmbedding ce WHERE LOWER(ce.entityName) LIKE LOWER(CONCAT('%', :name, '%'))")
+    List<ChunkEmbedding> findByEntityNameContainingIgnoreCase(@Param("name") String name);
 
     /**
      * Tìm chunk bằng FTS với filter theo content_type

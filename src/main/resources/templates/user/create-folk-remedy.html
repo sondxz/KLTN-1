@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng bài thuốc - DuocLieuVN</title>
+    <link rel="icon" type="image/png" href="/image/cay.jfif">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/2.0.2/js/toastr.min.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="/js/main.js"></script>
+    <script>
+        window.onload = async function() {
+            const token = localStorage.getItem("token");
+            if (!token) { window.location.href = '/login'; return; }
+            await loadPlantsList();
+            await loadDiseasesList();
+            $('#plants').select2({ placeholder: "Tìm kiếm cây dược liệu...", allowClear: true });
+            $('#diseases').select2({ placeholder: "Tìm kiếm bệnh...", allowClear: true });
+        }
+
+        async function loadPlantsList() {
+            try {
+                const res = await fetch("/api/plant/public/all-list");
+                const list = await res.json();
+                let html = '';
+                list.forEach(p => { html += `<option value="${p.id}">${p.name}</option>`; });
+                document.getElementById("plants").innerHTML = html;
+            } catch (e) { console.error("Lỗi load plants:", e); }
+        }
+
+        async function loadDiseasesList() {
+            try {
+                const res = await fetch("/api/diseases/public/get-all-list");
+                const list = await res.json();
+                let html = '';
+                list.forEach(d => { html += `<option value="${d.id}">${d.name}</option>`; });
+                document.getElementById("diseases").innerHTML = html;
+            } catch (e) { console.error("Lỗi load diseases:", e); }
+        }
+
+        function createSlug(name) {
+            return name.toLowerCase()
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^a-z0-9\s-]/g, "")
+                .replace(/[\s_-]+/g, "-")
+                .replace(/^-+|-+$/g, "");
+        }
+
+        async function submitRemedy() {
+            const token = localStorage.getItem("token");
+            if (!token) { toastr.error("Vui lòng đăng nhập!"); return; }
+
+            const name = document.getElementById("name").value.trim();
+            if (!name) { toastr.error("Vui lòng nhập tên bài thuốc!"); return; }
+
+            const payload = {
+                name: name,
+                slug: document.getElementById("slug").value.trim() || createSlug(name),
+                description: document.getElementById("description").value.trim() || null,
+                usageInstruction: document.getElementById("usageInstruction").value.trim() || null,
+                preparation: document.getElementById("preparation").value.trim() || null,
+                contraindication: document.getElementById("contraindication").value.trim() || null,
+                plantIds: $("#plants").val() ? $("#plants").val().map(id => parseInt(id)) : [],
+                diseaseIds: $("#diseases").val() ? $("#diseases").val().map(id => parseInt(id)) : []
+            };
+
+            try {
+                const res = await fetch("/api/folk-remedies/admin/create", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": "Bearer " + token,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    toastr.success("Đã gửi bài thuốc thành công! Vui lòng chờ duyệt.");
+                    setTimeout(() => { window.location.href = '/folk-remedies'; }, 2000);
+                } else {
+                    const text = await res.text();
+                    let msg = text;
+                    try { const j = JSON.parse(text); msg = j.message || j.defaultMessage || text; } catch(e) {}
+                    toastr.error(msg);
+                }
+            } catch (e) {
+                toastr.error("Lỗi kết nối!");
+            }
+        }
+    </script>
+</head>
+<body>
+<header id="header-main"></header>
+
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <div class="mb-4">
+                <h1 class="h3 fw-bold">Đăng tải bài thuốc dân gian mới</h1>
+                <p class="text-muted">Chia sẻ bài thuốc dân gian hữu ích. Bài đăng sẽ được chuyên gia kiểm duyệt trước khi xuất bản.</p>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <form id="remedyForm" onsubmit="event.preventDefault(); submitRemedy();">
+                        <div class="row g-4">
+                            <div class="col-lg-8">
+                                <div class="mb-3">
+                                    <label class="form-label">Tên bài thuốc <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="name" required onkeyup="document.getElementById('slug').value = createSlug(this.value)" placeholder="Ví dụ: Bài thuốc trị ho từ Cam thảo">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Đường dẫn (Slug)</label>
+                                    <input type="text" class="form-control" id="slug" placeholder="bai-thuoc-tri-ho" readonly>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Mô tả tóm tắt</label>
+                                    <textarea class="form-control" id="description" rows="3" placeholder="Nhập mô tả tóm tắt ngắn gọn về bài thuốc..."></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Hướng dẫn sử dụng (Cách dùng) <span class="text-danger">*</span></label>
+                                    <textarea class="form-control" id="usageInstruction" rows="4" placeholder="Hướng dẫn chi tiết cách sử dụng bài thuốc..."></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Cách bào chế / Chuẩn bị</label>
+                                    <textarea class="form-control" id="preparation" rows="4" placeholder="Các bước chuẩn bị, bào chế nguyên liệu..."></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Chống chỉ định / Lưu ý</label>
+                                    <textarea class="form-control" id="contraindication" rows="3" placeholder="Những trường hợp không nên dùng, lưu ý khi sử dụng..."></textarea>
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="card bg-light mb-3">
+                                    <div class="card-body">
+                                        <label class="form-label">Cây dược liệu liên quan</label>
+                                        <select class="form-select" id="plants" multiple></select>
+                                        <small class="text-muted">Chọn các cây dược liệu liên quan đến bài thuốc</small>
+                                    </div>
+                                </div>
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <label class="form-label">Bệnh liên quan</label>
+                                        <select class="form-select" id="diseases" multiple></select>
+                                        <small class="text-muted">Chọn các bệnh mà bài thuốc có thể chữa trị</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle"></i> Gửi để duyệt
+                            </button>
+                            <a href="/folk-remedies" class="btn btn-outline-secondary">Hủy</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer class="pt-5" id="footer-main"></footer>
+</body>
+</html>

@@ -199,7 +199,14 @@
                                     <a th:href="@{'/folk-remedies/' + ${remedy.id}}" class="text-decoration-none text-success fw-medium" th:text="${remedy.name}">Tên bài thuốc</a>
                                 </li>
                             </ul>
-                            <span th:unless="${relatedRemedies != null and not #lists.isEmpty(relatedRemedies)}" th:utext="${plant.folkRemedies ?: 'Đang cập nhật.'}"></span>
+                            <div th:unless="${relatedRemedies != null and not #lists.isEmpty(relatedRemedies)}"
+                                 th:if="${plant.folkRemedies != null and not #strings.isEmpty(plant.folkRemedies)}"
+                                 class="folk-remedies-text p-3 bg-light rounded"
+                                 style="white-space: pre-line; line-height: 1.8;"
+                                 th:utext="${plant.folkRemedies}"></div>
+                            <span th:unless="${relatedRemedies != null and not #lists.isEmpty(relatedRemedies)}"
+                                  th:if="${plant.folkRemedies == null or #strings.isEmpty(plant.folkRemedies)}"
+                                  class="text-muted">Đang cập nhật.</span>
                         </div>
                         <p><strong>Tác dụng phụ:</strong> <span th:utext="${plant.sideEffects ?: 'Đang cập nhật.'}"></span></p>
                     </div>

@@ -7,7 +7,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpSession;
@@ -19,7 +18,6 @@ import java.net.http.HttpResponse;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * Service xử lý chat với người dùng.
@@ -41,10 +39,10 @@ public class ChatService {
     private int geminiTimeoutSeconds;
 
     @Autowired
-    private PlantRepository plantRepository;
+    private RagPipelineService ragPipelineService;
 
     @Autowired
-    private RagPipelineService ragPipelineService;
+    private PlantRepository plantRepository;
 
     private static final String GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
     private static final Pattern IMAGE_URL_PATTERN = Pattern.compile("Ảnh kèm theo:\\s*(https?://\\S+)");
@@ -181,7 +179,7 @@ public class ChatService {
         }
     }
 
-    private String identifyPlantNameFromImage(String imageUrl) {
+    private Map<String, String> identifyPlantNameFromImage(String imageUrl) {
         try {
             JsonObject root = new JsonObject();
             JsonArray contents = new JsonArray();
@@ -193,9 +191,14 @@ public class ChatService {
 
             JsonObject textPart = new JsonObject();
             textPart.addProperty("text",
-                    "Bạn là chuyên gia thực vật. Hãy nhìn vào ảnh sau và cho biết cây này là cây gì. " +
-                            "Trả về DUY NHẤT một chuỗi JSON với cấu trúc: {\"common_name\":\"...\",\"scientific_name\":\"...\"}. " +
-                            "Nếu không chắc chắn, hãy vẫn đoán tên gần đúng nhất.");
+                    "Bạn là chuyên gia thực vật. Hãy nhìn ảnh và xác định chính xác tên cây.\n" +
+                    "QUAN TRỌNG:\n" +
+                    "- common_name PHẢI là tên tiếng Việt phổ biến (vd: 'Atiso', 'Nha đam', 'Sâm Ngọc Linh'). KHÔNG dùng tiếng Anh.\n" +
+                    "- scientific_name là tên khoa học Latin (vd: 'Cynara scolymus').\n" +
+                    "- Nếu bạn CHẮC CHẮN (>=90%) → trả về JSON: {\"common_name\":\"...\",\"scientific_name\":\"...\",\"confidence\":\"high\"}\n" +
+                    "- Nếu bạn KHÔNG CHẮC (<90%) → trả về JSON: {\"common_name\":\"...\",\"scientific_name\":\"...\",\"confidence\":\"low\"}\n" +
+                    "- Nếu ảnh không phải cây cối → trả về JSON: {\"common_name\":\"\",\"scientific_name\":\"\",\"confidence\":\"none\"}\n" +
+                    "- Chỉ trả về JSON, không thêm text nào khác.");
             parts.add(textPart);
 
             JsonObject imagePart = buildImagePart(imageUrl);
@@ -230,16 +233,21 @@ public class ChatService {
                     cleanText = cleanText.replaceAll("```json\\s*", "").replaceAll("```\\s*", "").trim();
                 }
                 JsonObject obj = JsonParser.parseString(cleanText).getAsJsonObject();
-                if (obj.has("common_name")) {
-                    return obj.get("common_name").getAsString();
-                }
-                if (obj.has("scientific_name")) {
-                    return obj.get("scientific_name").getAsString();
-                }
+                String commonName = obj.has("common_name") ? obj.get("common_name").getAsString() : null;
+                String scientificName = obj.has("scientific_name") ? obj.get("scientific_name").getAsString() : null;
+                
+                // Trả về Map chứa cả 2 tên để caller dùng cho DB lookup
+                Map<String, String> result = new HashMap<>();
+                if (commonName != null && !commonName.isBlank()) result.put("common_name", commonName);
+                if (scientificName != null && !scientificName.isBlank()) result.put("scientific_name", scientificName);
+                if (!result.isEmpty()) return result;
             } catch (Exception e) {
                 // Không parse được JSON → trả text thô
             }
-            return text;
+            // Fallback: trả text thô dưới dạng common_name
+            Map<String, String> fallback = new HashMap<>();
+            fallback.put("common_name", text);
+            return fallback;
         } catch (Exception e) {
             log.error("Gemini image identify error", e);
             return null;
@@ -248,170 +256,217 @@ public class ChatService {
 
     /**
      * Xử lý câu hỏi kèm ảnh với luồng tối ưu:
-     * 1. Dùng Gemini nhận diện tên cây từ ảnh
-     * 2. Tìm trong database trước
-     * 3. Nếu có trong DB → dùng dữ liệu DB (chính xác hơn)
-     * 4. Nếu không có → dùng tri thức nền của Gemini
+     * 1. Gemini Vision nhận diện tên cây từ ảnh
+     * 2. Nếu không nhận diện được → thông báo ngay, không gọi AI thêm
+     * 3. Tạo câu hỏi text từ kết quả nhận diện
+     * 4. Đưa qua RAG Pipeline (có entity verification + hybrid search) → chính xác hơn
      */
     private String answerWithImageAndDatabase(String userMessage, String imageUrl, String history) {
         try {
-            String identifiedPlantName = identifyPlantNameFromImage(imageUrl);
-            List<Plant> plantsFromDB = new ArrayList<>();
+            // 1. Gemini Vision nhận diện — trả về Map với common_name & scientific_name
+            Map<String, String> visionResult = identifyPlantNameFromImage(imageUrl);
             
-            if (identifiedPlantName != null && !identifiedPlantName.trim().isEmpty()) {
-                plantsFromDB.addAll(plantRepository.findByNameContainingIgnoreCase(identifiedPlantName));
-                plantsFromDB.addAll(plantRepository.findByScientificNameContainingIgnoreCase(identifiedPlantName));
-                plantsFromDB.addAll(plantRepository.findByOtherNamesContainingIgnoreCase(identifiedPlantName));
-                Set<Plant> uniquePlants = new HashSet<>(plantsFromDB);
-                plantsFromDB = new ArrayList<>(uniquePlants);
+            String identifiedPlantName = null;
+            String identifiedScientificName = null;
+            if (visionResult != null) {
+                identifiedPlantName = visionResult.get("common_name");
+                identifiedScientificName = visionResult.get("scientific_name");
             }
             
-            String prompt;
-            String plantsJsonData = "";
+            // ===== GUARD: Vision không nhận diện được =====
+            if ((identifiedPlantName == null || identifiedPlantName.isBlank()) 
+                    && (identifiedScientificName == null || identifiedScientificName.isBlank())) {
+                return """
+                    <div class="rag-no-result">
+                        <p>⚠️ <b>Không thể nhận diện cây trong ảnh.</b></p>
+                        <p>Vui lòng thử lại với:</p>
+                        <ul>
+                            <li>Ảnh rõ nét hơn, chụp cận cảnh cây</li>
+                            <li>Hoặc mô tả cây bằng văn bản để tôi tra cứu</li>
+                        </ul>
+                    </div>
+                    """;
+            }
             
-            if (!plantsFromDB.isEmpty()) {
-                final List<String> fieldsToExcludeByName = Arrays.asList(
-                        "description", "createdAt", "updatedAt", "createdBy", "updatedBy"
-                );
-                final String entityPackagePrefix = "com.web.entity";
-                
-                Gson gson = new GsonBuilder()
-                        .setExclusionStrategies(new ExclusionStrategy() {
-                            @Override
-                            public boolean shouldSkipField(FieldAttributes f) {
-                                Class<?> fieldType = f.getDeclaredClass();
-                                if (Collection.class.isAssignableFrom(fieldType) ||
-                                        Map.class.isAssignableFrom(fieldType)) {
-                                    return true;
-                                }
-                                if (fieldType.getName().startsWith(entityPackagePrefix) && !fieldType.equals(Plant.class)) {
-                                    return true;
-                                }
-                                return fieldsToExcludeByName.contains(f.getName());
-                            }
-                            @Override
-                            public boolean shouldSkipClass(Class<?> clazz) {
-                                return false;
-                            }
-                        })
-                        .create();
-                plantsJsonData = gson.toJson(plantsFromDB);
-                prompt = """
-                    Bạn là trợ lý AI của website quản lý cây dược liệu. Chỉ trả lời bằng tiếng Việt, dạng HTML.
-                    
-                    Tôi đã nhận diện được cây trong ảnh có thể là: %s
-                    Và đã tìm thấy thông tin trong database của hệ thống.
-                    
-                    Lịch sử chat trước đó:
-                    %s
-                    
-                    Dưới đây là **dữ liệu cây dược liệu** từ database dạng JSON:
-                    %s
-                    
-                    Câu hỏi của người dùng: %s
-                    
-                    Quy tắc trả lời BẮT BUỘC:
-                    1. TUYỆT ĐỐI CHỈ SỬ DỤNG thông tin từ dữ liệu JSON được cung cấp ở trên để trả lời. Không được bịa đặt, tự suy diễn hay sử dụng tri thức nền của bạn.
-                    2. Nếu thông tin người dùng hỏi KHÔNG CÓ trong dữ liệu JSON, hãy nói rõ: "Thông tin này hiện chưa có trong cơ sở dữ liệu của hệ thống."
-                    3. Không cung cấp bất kỳ thông tin nào nằm ngoài dữ liệu được cung cấp.
-                    """.formatted(identifiedPlantName, history, plantsJsonData, 
-                            userMessage != null && !userMessage.isBlank() ? userMessage : "Hãy cho tôi biết thông tin về cây này từ cơ sở dữ liệu.");
+            log.info("Gemini Vision nhận diện cây: common={}, scientific={}", identifiedPlantName, identifiedScientificName);
+            
+            // 2. Tra cứu trực tiếp trong bảng plants để lấy tên chính xác trong DB
+            //    Thử common_name trước, nếu không có thì thử scientific_name
+            String dbPlantName = findMatchingPlantName(identifiedPlantName, identifiedScientificName);
+            String plantNameForQuery = (dbPlantName != null) ? dbPlantName 
+                    : (identifiedPlantName != null && !identifiedPlantName.isBlank()) ? identifiedPlantName 
+                    : identifiedScientificName;
+            
+            if (dbPlantName != null && identifiedPlantName != null 
+                    && !dbPlantName.equalsIgnoreCase(identifiedPlantName)) {
+                log.info("Đã map tên cây từ Vision '{}' -> tên trong DB '{}'", identifiedPlantName, dbPlantName);
+            }
+            
+            // 3. Tạo câu hỏi text — LUÔN ghép tên cây đã nhận diện để RAG tìm đúng
+            //    Tránh bug: userMessage kiểu "đây là cây gì" không chứa tên cây → RAG trả lời sai
+            String textQuestion;
+            if (userMessage != null && !userMessage.isBlank()) {
+                textQuestion = "Người dùng hỏi: \"" + userMessage + "\". "
+                        + "Cây trong ảnh được nhận diện là: " + plantNameForQuery + ". "
+                        + "Hãy cung cấp thông tin về cây " + plantNameForQuery + ".";
             } else {
-                if (identifiedPlantName != null && !identifiedPlantName.trim().isEmpty()) {
-                    prompt = """
-                        Bạn là trợ lý AI của website quản lý cây dược liệu. Trả lời bằng tiếng Việt, dạng HTML.
-                        
-                        Tôi đã nhận diện được cây trong ảnh có thể là: %s
-                        Tuy nhiên, cây này KHÔNG CÓ TRONG CƠ SỞ DỮ LIỆU của hệ thống.
-                        
-                        Lịch sử chat trước đó:
-                        %s
-                        
-                        Câu hỏi của người dùng: %s
-                        
-                        Quy tắc trả lời BẮT BUỘC:
-                        1. Hãy thông báo cho người dùng biết hệ thống nhận diện được cây có thể là "%s" nhưng hiện tại chưa có thông tin về cây này trong cơ sở dữ liệu.
-                        2. TUYỆT ĐỐI KHÔNG cung cấp thêm bất kỳ thông tin nào về đặc điểm, công dụng, hay tên khoa học từ tri thức nền của bạn. Chỉ trả lời dựa trên dữ liệu của hệ thống, mà ở đây là không có.
-                        """.formatted(identifiedPlantName, history, 
-                                userMessage != null && !userMessage.isBlank() ? userMessage : "Đây là cây gì?", identifiedPlantName);
-                } else {
-                    prompt = """
-                        Bạn là trợ lý AI của website quản lý cây dược liệu. Trả lời bằng tiếng Việt, dạng HTML.
-                        
-                        Lịch sử chat trước đó:
-                        %s
-                        
-                        Câu hỏi của người dùng: %s
-                        
-                        Quy tắc trả lời BẮT BUỘC:
-                        1. Hãy nói với người dùng: "Tôi không thể nhận diện được cây trong ảnh và không tìm thấy thông tin trong cơ sở dữ liệu."
-                        2. TUYỆT ĐỐI KHÔNG cố gắng đoán bừa hay tự nghĩ ra thông tin để trả lời.
-                        """.formatted(history, 
-                                userMessage != null && !userMessage.isBlank() ? userMessage : "Đây là cây gì?");
-                }
+                textQuestion = "Cây " + plantNameForQuery + " có đặc điểm, công dụng gì?";
             }
             
-            // Build Gemini request with image — BẮT BUỘC Gemini vì cần vision
-            JsonObject root = new JsonObject();
-            JsonArray contents = new JsonArray();
-            JsonObject userMsg = new JsonObject();
-            userMsg.addProperty("role", "user");
-
-            JsonArray parts = new JsonArray();
-            JsonObject partText = new JsonObject();
-            partText.addProperty("text", prompt);
-            parts.add(partText);
-
-            JsonObject imagePart = buildImagePart(imageUrl);
-            if (imagePart != null) {
-                parts.add(imagePart);
+            // 4. DÙNG RAG PIPELINE — đã có entity verification + hybrid search
+            String ragResponse = ragPipelineService.processQuestion(textQuestion);
+            
+            // 5. Bao kết quả với prefix nhận diện
+            boolean notFound = ragResponse.contains("chưa có thông tin") 
+                            || ragResponse.contains("rag-no-result")
+                            || ragResponse.contains("không tìm thấy");
+            
+            // Build tên hiển thị (ưu tiên common_name, fallback scientific_name)
+            String visionDisplayName = (identifiedPlantName != null && !identifiedPlantName.isBlank())
+                    ? identifiedPlantName
+                    : (identifiedScientificName != null) ? identifiedScientificName : "không xác định";
+            boolean nameWasMapped = dbPlantName != null && identifiedPlantName != null 
+                    && !dbPlantName.equalsIgnoreCase(identifiedPlantName);
+            
+            if (notFound) {
+                String displayName = nameWasMapped
+                    ? visionDisplayName + " (tên trong CSDL: " + dbPlantName + ")"
+                    : visionDisplayName;
+                return String.format("""
+                    <p>🔍 Hệ thống nhận diện cây trong ảnh có thể là: <b>%s</b></p>
+                    <p>⚠️ Tuy nhiên, cây này hiện chưa có trong cơ sở dữ liệu.</p>
+                    """, displayName) + ragResponse;
             }
+            
+            String displayName = nameWasMapped
+                ? visionDisplayName + " (" + dbPlantName + ")"
+                : visionDisplayName;
+            return String.format("""
+                <p>🔍 Hệ thống nhận diện cây trong ảnh là: <b>%s</b></p>
+                """, displayName) + ragResponse;
 
-            userMsg.add("parts", parts);
-            contents.add(userMsg);
-
-            JsonObject generationConfig = new JsonObject();
-            generationConfig.addProperty("temperature", 0.5);
-            root.add("generationConfig", generationConfig);
-            root.add("contents", contents);
-
-            // Gọi Gemini với retry
-            String responseBody = callGeminiRawWithRetry(root);
-            if (responseBody == null) {
-                return "❌ Lỗi kết nối với AI. Vui lòng thử lại sau.";
-            }
-
-            JsonObject json = JsonParser.parseString(responseBody).getAsJsonObject();
-            if (json.has("candidates")) {
-                JsonArray candidates = json.getAsJsonArray("candidates");
-                if (candidates.size() > 0) {
-                    JsonObject candidate = candidates.get(0).getAsJsonObject();
-                    if (candidate.has("content")) {
-                        JsonObject content = candidate.getAsJsonObject("content");
-                        if (content.has("parts")) {
-                            JsonArray responseParts = content.getAsJsonArray("parts");
-                            if (responseParts.size() > 0) {
-                                JsonObject part = responseParts.get(0).getAsJsonObject();
-                                if (part.has("text")) {
-                                    return part.get("text").getAsString();
-                                }
-                            }
-                        }
-                    }
-                }
-                log.warn("Gemini response structure unexpected");
-                return "⚠️ Không nhận được phản hồi hợp lệ từ AI.";
-            } else if (json.has("error")) {
-                log.error("Gemini API error");
-                return "❌ Lỗi xử lý yêu cầu. Vui lòng thử lại sau.";
-            } else {
-                log.warn("Unexpected Gemini response");
-                return "⚠️ Không nhận được phản hồi từ AI. Vui lòng thử lại.";
-            }
         } catch (Exception e) {
-            log.error("answerWithImageAndDatabase error", e);
+            log.error("Error in answerWithImageAndDatabase", e);
             return "❌ Lỗi hệ thống khi xử lý ảnh. Vui lòng thử lại sau.";
         }
+    }
+
+    /**
+     * Tìm tên cây khớp trong bảng plants dựa trên tên Gemini Vision trả về.
+     * 
+     * Chiến lược:
+     * 1. Tìm bằng common_name (tiếng Việt) trước — tách từ, tìm trong name/otherNames
+     * 2. Nếu không có → tìm bằng scientific_name (Latin) trong scientificName
+     * 3. Chọn plant có nhiều từ khớp nhất
+     * 
+     * @param commonName Tên tiếng Việt từ Vision (vd: "Atiso", "Atiso đỏ"), có thể null
+     * @param scientificName Tên khoa học từ Vision (vd: "Cynara scolymus"), có thể null
+     * @return Tên cây trong DB nếu tìm thấy, null nếu không tìm thấy
+     */
+    private String findMatchingPlantName(String commonName, String scientificName) {
+        // ===== BƯỚC 1: Tìm bằng common_name (tiếng Việt) =====
+        if (commonName != null && !commonName.isBlank()) {
+            String result = findPlantByWordMatch(commonName);
+            if (result != null) return result;
+        }
+        
+        // ===== BƯỚC 2: Tìm bằng scientific_name (Latin) =====
+        if (scientificName != null && !scientificName.isBlank()) {
+            String result = findPlantByScientificName(scientificName);
+            if (result != null) return result;
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Tìm plant bằng cách tách tên thành từng từ và tìm trong name, otherNames.
+     */
+    private String findPlantByWordMatch(String visionName) {
+        try {
+            String[] words = visionName.toLowerCase().trim().split("\\s+");
+            List<String> searchWords = new ArrayList<>();
+            for (String w : words) {
+                if (w.length() >= 3) {
+                    searchWords.add(w);
+                }
+            }
+            if (searchWords.isEmpty() && words.length > 0) {
+                searchWords.add(words[0]);
+            }
+            if (searchWords.isEmpty()) return null;
+            
+            Map<Plant, Integer> plantScore = new LinkedHashMap<>();
+            
+            for (String word : searchWords) {
+                for (Plant p : plantRepository.findByNameContainingIgnoreCase(word)) {
+                    plantScore.merge(p, 2, Integer::sum);
+                }
+                for (Plant p : plantRepository.findByOtherNamesContainingIgnoreCase(word)) {
+                    plantScore.merge(p, 3, Integer::sum);
+                }
+            }
+            
+            if (plantScore.isEmpty()) return null;
+            
+            Plant bestMatch = plantScore.entrySet().stream()
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElse(null);
+            
+            if (bestMatch != null && bestMatch.getName() != null) {
+                log.debug("Tìm thấy plant trong DB: '{}' (score={}) cho vision '{}'", 
+                        bestMatch.getName(), plantScore.get(bestMatch), visionName);
+                return bestMatch.getName();
+            }
+        } catch (Exception e) {
+            log.warn("Lỗi khi tra cứu plant name '{}' trong DB: {}", visionName, e.getMessage());
+        }
+        return null;
+    }
+    
+    /**
+     * Tìm plant theo scientific name (Latin).
+     * Scientific name thường là duy nhất và ngôn ngữ-độc-lập → độ chính xác cao.
+     */
+    private String findPlantByScientificName(String scientificName) {
+        try {
+            // Tách scientific name thành từng từ (vd: "Cynara scolymus" → ["cynara", "scolymus"])
+            String[] words = scientificName.toLowerCase().trim().split("\\s+");
+            
+            // Tìm ít nhất 2 từ khớp trong scientificName của DB
+            Map<Plant, Integer> plantScore = new LinkedHashMap<>();
+            
+            for (String word : words) {
+                if (word.length() < 3) continue;
+                for (Plant p : plantRepository.findByScientificNameContainingIgnoreCase(word)) {
+                    plantScore.merge(p, 1, Integer::sum);
+                }
+            }
+            
+            if (plantScore.isEmpty()) {
+                // Fallback: tìm toàn bộ scientific name
+                for (Plant p : plantRepository.findByScientificNameContainingIgnoreCase(scientificName)) {
+                    plantScore.put(p, 1);
+                }
+            }
+            
+            if (plantScore.isEmpty()) return null;
+            
+            Plant bestMatch = plantScore.entrySet().stream()
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElse(null);
+            
+            if (bestMatch != null && bestMatch.getName() != null) {
+                log.debug("Tìm thấy plant qua scientific name: '{}' (sci={})", 
+                        bestMatch.getName(), bestMatch.getScientificName());
+                return bestMatch.getName();
+            }
+        } catch (Exception e) {
+            log.warn("Lỗi khi tra cứu scientific name '{}': {}", scientificName, e.getMessage());
+        }
+        return null;
     }
 
     /**

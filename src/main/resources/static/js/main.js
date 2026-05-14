@@ -19,10 +19,19 @@ $( document ).ready(function() {
         var isAdmin = userRole === "ROLE_ADMIN";
         
         var currentPath = window.location.pathname;
-        var showUploadButton = !isExpert && !isAdmin && (currentPath === '/plant' || currentPath.startsWith('/plant') || 
-                              currentPath === '/articles' || currentPath.startsWith('/articles') ||
-                              currentPath === '/plant-detail' || currentPath.startsWith('/plant-detail') ||
-                              currentPath === '/article-detail' || currentPath.startsWith('/article-detail'));
+        var showUploadButton =
+          !isExpert &&
+          !isAdmin &&
+          (currentPath === "/plant" ||
+            currentPath.startsWith("/plant") ||
+            currentPath === "/articles" ||
+            currentPath.startsWith("/articles") ||
+            currentPath === "/plant-detail" ||
+            currentPath.startsWith("/plant-detail") ||
+            currentPath === "/article-detail" ||
+            currentPath.startsWith("/article-detail") ||
+            currentPath === "/folk-remedies" ||
+            currentPath.startsWith("/folk-remedies"));
         
         var uploadButton = '';
         if(showUploadButton) {
@@ -34,6 +43,7 @@ $( document ).ready(function() {
               <ul class="dropdown-menu dropdown-menu-end">
                 <li><a class="dropdown-item" href="/create-plant"><i class="bi bi-flower1 me-2 text-success"></i>Đăng cây dược liệu</a></li>
                 <li><a class="dropdown-item" href="/create-article"><i class="bi bi-file-text me-2 text-success"></i>Đăng bài viết</a></li>
+                <li><a class="dropdown-item" href="/create-folk-remedy"><i class="bi bi-journal-medical me-2 text-success"></i>Đăng bài thuốc</a></li>
               </ul>
             </div>`;
         }

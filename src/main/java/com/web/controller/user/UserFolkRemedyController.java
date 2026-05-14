@@ -38,4 +38,12 @@ public class UserFolkRemedyController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bài thuốc");
         }
     }
+
+    /**
+     * Trang tạo bài thuốc mới (user)
+     */
+    @RequestMapping(value = {"/create-folk-remedy"}, method = RequestMethod.GET)
+    public String createFolkRemedy() {
+        return "user/create-folk-remedy.html";
+    }
 }

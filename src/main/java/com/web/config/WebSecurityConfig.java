@@ -102,7 +102,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .antMatchers(org.springframework.http.HttpMethod.GET, "/admin/list-user", "/admin/create-user", 
                              "/admin/list-expert", "/admin/create-expert", "/admin/list-comment").permitAll()
                 .antMatchers(org.springframework.http.HttpMethod.GET, "/admin/**").permitAll()
-                .antMatchers(org.springframework.http.HttpMethod.GET, "/plant/**", "/articles/**", "/article-detail/**", "/plant-detail/**", "/experts/**", "/expert-detail/**", "/research/**", "/research-detail/**", "/about/**", "/index", "/", "/create-plant", "/create-article", "/my-account", "/user/messages", "/folk-remedies/**").permitAll()
+                .antMatchers(org.springframework.http.HttpMethod.GET, "/plant/**", "/articles/**", "/article-detail/**", "/plant-detail/**", "/experts/**", "/expert-detail/**", "/research/**", "/research-detail/**", "/about/**", "/index", "/", "/create-plant", "/create-article", "/create-folk-remedy", "/my-account", "/user/messages", "/folk-remedies/**").permitAll()
                 .antMatchers("/admin/list-user", "/admin/create-user").hasAuthority(Contains.ROLE_ADMIN)
                 .antMatchers("/admin/list-expert", "/admin/create-expert").hasAuthority(Contains.ROLE_ADMIN)
                 .antMatchers("/admin/list-comment").hasAuthority(Contains.ROLE_ADMIN)

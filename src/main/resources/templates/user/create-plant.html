@@ -41,72 +41,179 @@
 
             <div class="card shadow-sm">
                 <div class="card-body">
+                    <!-- Tabs -->
+                    <ul class="nav nav-tabs mb-3" id="plantTab" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic" type="button">Thông tin cơ bản</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" id="characteristics-tab" data-bs-toggle="tab" data-bs-target="#characteristics" type="button">Đặc điểm thực vật</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" id="usage-tab" data-bs-toggle="tab" data-bs-target="#usage" type="button">Công dụng & Cách dùng</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" id="media-tab" data-bs-toggle="tab" data-bs-target="#media" type="button">Media</button>
+                        </li>
+                    </ul>
+
                     <form id="plantForm">
-                        <!-- Thông tin cơ bản -->
-                        <div class="mb-4">
-                            <h5 class="fw-bold mb-3">Thông tin cơ bản</h5>
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <label class="form-label">Tên cây <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="name" required onkeyup="createSlug(this.value)">
-                                    <div id="nameValidation" class="mt-1" style="font-size: 0.875rem;"></div>
+                        <div class="tab-content" id="plantTabContent">
+                        <!-- TAB 1: Thông tin cơ bản -->
+                        <div class="tab-pane fade show active" id="basic" role="tabpanel">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="mb-3">
+                                        <label class="form-label">Tên cây <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control" id="name" required onkeyup="createSlug(this.value)" placeholder="Nhập tên cây">
+                                        <div id="nameValidation" class="mt-1" style="font-size: 0.875rem;"></div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Tên khoa học</label>
+                                        <input type="text" class="form-control" id="scientificName" placeholder="Tên khoa học">
+                                        <div id="scientificNameValidation" class="mt-1" style="font-size: 0.875rem;"></div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Chi (Genus)</label>
+                                            <input type="text" class="form-control" id="genus" placeholder="Ví dụ: Panax">
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Tên gọi khác</label>
+                                            <input type="text" class="form-control" id="otherNames" placeholder="Ví dụ: Tam thất, Điền thất">
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Bộ phận dùng <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control" id="partsUsed" placeholder="Ví dụ: Lá, rễ, hoa" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Mô tả <span class="text-danger">*</span></label>
+                                        <textarea class="form-control" id="description" rows="3" required placeholder="Mô tả tổng quan về cây dược liệu"></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Nguồn tham khảo</label>
+                                        <input type="text" class="form-control" id="source" placeholder="Ví dụ: Sách, tài liệu hoặc đường link https://...">
+                                    </div>
                                 </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Tên khoa học</label>
-                                    <input type="text" class="form-control" id="scientificName">
-                                    <div id="scientificNameValidation" class="mt-1" style="font-size: 0.875rem;"></div>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">
-                                        Họ thực vật 
-                                        <span class="text-danger">*</span>
-                                        <span 
-                                            class="text-muted ms-2" 
-                                            title="Nếu không chắc, có thể để mặc định 'Chưa phân loại'"
-                                            style="cursor: help;"
-                                        >
-                                            <i class="bi bi-info-circle"></i>
-                                        </span>
-                                    </label>
-                                    <select class="form-select" id="families" required></select>
-                                    <small class="form-text text-muted">
-                                        💡 Nếu không chắc, có thể để mặc định <strong>"Chưa phân loại"</strong>
-                                    </small>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Bộ phận dùng <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="partsUsed" placeholder="Ví dụ: Lá, rễ, hoa" required>
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label">Mô tả <span class="text-danger">*</span></label>
-                                    <textarea class="form-control" id="description" rows="3" required></textarea>
+                                <div class="col-md-4">
+                                    <div class="card mb-3 bg-light">
+                                        <div class="card-body">
+                                            <label class="form-label">
+                                                Họ thực vật <span class="text-danger">*</span>
+                                            </label>
+                                            <select class="form-select" id="families" required></select>
+                                            <small class="form-text text-muted mt-1">Nếu không chắc, để mặc định "Chưa phân loại"</small>
+                                        </div>
+                                    </div>
+                                    <div class="card bg-light">
+                                        <div class="card-body">
+                                            <label class="form-label">Công dụng chữa bệnh</label>
+                                            <select class="form-select" id="diseases" multiple></select>
+                                            <small class="form-text text-muted mt-1">Chọn các công dụng mà cây có thể chữa trị</small>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Công dụng -->
-                        <div class="mb-4">
-                            <h5 class="fw-bold mb-3">Công dụng chữa bệnh</h5>
-                            <select class="form-select" id="diseases" multiple></select>
-                            <small class="text-muted">Chọn các công dụng mà cây dược liệu này có thể chữa trị</small>
-                        </div>
-
-                        <!-- Ảnh -->
-                        <div class="mb-4">
-                            <h5 class="fw-bold mb-3">Hình ảnh</h5>
+                        <!-- TAB 2: Đặc điểm thực vật -->
+                        <div class="tab-pane fade" id="characteristics" role="tabpanel">
                             <div class="mb-3">
-                                <label class="form-label">Ảnh chính</label>
-                                <input type="file" class="form-control" id="mainImage" accept="image/*">
-                                <div id="mainImagePreview" class="mt-2"></div>
+                                <label class="form-label">Đặc điểm chung</label>
+                                <textarea class="form-control" id="botanicalCharacteristics" rows="2" placeholder="Đặc điểm hình thái thực vật chung"></textarea>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Ảnh phụ (tối đa 5 ảnh)</label>
-                                <input type="file" class="form-control" id="subImages" multiple accept="image/*">
-                                <div id="subImagesPreview" class="row g-2 mt-2"></div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Thân</label>
+                                    <textarea class="form-control" id="stem" rows="2" placeholder="Mô tả thân cây"></textarea>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Lá</label>
+                                    <textarea class="form-control" id="leaf" rows="2" placeholder="Mô tả lá cây"></textarea>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Hoa</label>
+                                    <textarea class="form-control" id="flower" rows="2" placeholder="Mô tả hoa"></textarea>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Quả / Hạt</label>
+                                    <textarea class="form-control" id="fruitOrSeed" rows="2" placeholder="Mô tả quả hoặc hạt"></textarea>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Rễ</label>
+                                    <textarea class="form-control" id="root" rows="2" placeholder="Mô tả rễ cây"></textarea>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Thành phần hóa học</label>
+                                    <textarea class="form-control" id="chemicalComposition" rows="2" placeholder="Các hoạt chất, thành phần hóa học"></textarea>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Sinh thái học</label>
+                                    <textarea class="form-control" id="ecology" rows="2" placeholder="Đặc điểm sinh thái, môi trường sống"></textarea>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Phân bố địa lý</label>
+                                    <textarea class="form-control" id="distribution" rows="2" placeholder="Nhập thông tin phân bố địa lý"></textarea>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Độ cao sinh trưởng</label>
+                                    <input type="text" class="form-control" id="altitude" placeholder="Ví dụ: 0-1500m">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Mùa thu hoạch</label>
+                                    <input type="text" class="form-control" id="harvestSeason" placeholder="Ví dụ: Tháng 3-5">
+                                </div>
                             </div>
                         </div>
 
-                        <div class="d-flex gap-2">
+                        <!-- TAB 3: Công dụng & Cách dùng -->
+                        <div class="tab-pane fade" id="usage" role="tabpanel">
+                            <div class="mb-3">
+                                <label class="form-label">Công dụng y học</label>
+                                <textarea class="form-control" id="medicinalUses" rows="2" placeholder="Các công dụng chữa bệnh chính"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Chỉ định</label>
+                                <textarea class="form-control" id="indications" rows="2" placeholder="Các trường hợp được chỉ định sử dụng"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Chống chỉ định</label>
+                                <textarea class="form-control" id="contraindications" rows="2" placeholder="Các trường hợp không nên sử dụng"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Liều lượng và cách dùng</label>
+                                <textarea class="form-control" id="dosage" rows="2" placeholder="Hướng dẫn liều lượng, cách sử dụng"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Bài thuốc dân gian</label>
+                                <textarea class="form-control" id="folkRemedies" rows="2" placeholder="Các bài thuốc dân gian liên quan"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Tác dụng phụ</label>
+                                <textarea class="form-control" id="sideEffects" rows="2" placeholder="Các tác dụng phụ có thể gặp"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- TAB 4: Media -->
+                        <div class="tab-pane fade" id="media" role="tabpanel">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Ảnh chính</label>
+                                    <input type="file" class="form-control" id="mainImage" accept="image/*">
+                                    <div id="mainImagePreview" class="mt-2"></div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Ảnh phụ (tối đa 5 ảnh)</label>
+                                    <input type="file" class="form-control" id="subImages" multiple accept="image/*">
+                                    <div id="subImagesPreview" class="row g-2 mt-2"></div>
+                                    <small class="text-muted">Đăng từ 3 ảnh để bài đăng chất lượng hơn</small>
+                                </div>
+                            </div>
+                        </div>
+                        </div>
+
+                        <div class="d-flex gap-2 mt-4">
                             <button type="submit" class="btn btn-success">
                                 <i class="bi bi-check-circle"></i> Gửi để duyệt
                             </button>
@@ -264,7 +371,6 @@
             return;
         }
 
-        // Đảm bảo familiesId luôn có giá trị (mặc định hoặc người dùng chọn)
         const familiesSelect = document.getElementById("families");
         const familiesId = familiesSelect.value ? parseInt(familiesSelect.value) : null;
         
@@ -273,28 +379,42 @@
             return;
         }
 
-        // Đảm bảo có ít nhất 1 ảnh
         let allImages = [];
-        if (mainImageUrl) {
-            allImages.push(mainImageUrl);
-        }
-        if (uploadedImages.length > 0) {
-            allImages = allImages.concat(uploadedImages);
-        }
+        if (mainImageUrl) allImages.push(mainImageUrl);
+        if (uploadedImages.length > 0) allImages = allImages.concat(uploadedImages);
         
         if (allImages.length === 0) {
             toastr.error("Vui lòng upload ít nhất 1 hình ảnh!");
             return;
         }
 
-        // Tạo Plant object theo format PlantRequestDto
         const plant = {
             name: document.getElementById("name").value.trim(),
             scientificName: document.getElementById("scientificName").value.trim() || null,
+            genus: document.getElementById("genus").value.trim() || null,
+            otherNames: document.getElementById("otherNames").value.trim() || null,
             partsUsed: document.getElementById("partsUsed").value.trim(),
             description: document.getElementById("description").value.trim() || null,
-            families: familiesId ? { id: familiesId } : null,
-            image: allImages.length > 0 ? allImages[0] : null
+            source: document.getElementById("source").value.trim() || null,
+            botanicalCharacteristics: document.getElementById("botanicalCharacteristics").value.trim() || null,
+            chemicalComposition: document.getElementById("chemicalComposition").value.trim() || null,
+            ecology: document.getElementById("ecology").value.trim() || null,
+            distribution: document.getElementById("distribution").value.trim() || null,
+            altitude: document.getElementById("altitude").value.trim() || null,
+            harvestSeason: document.getElementById("harvestSeason").value.trim() || null,
+            medicinalUses: document.getElementById("medicinalUses").value.trim() || null,
+            indications: document.getElementById("indications").value.trim() || null,
+            contraindications: document.getElementById("contraindications").value.trim() || null,
+            dosage: document.getElementById("dosage").value.trim() || null,
+            folkRemedies: document.getElementById("folkRemedies").value.trim() || null,
+            sideEffects: document.getElementById("sideEffects").value.trim() || null,
+            stem: document.getElementById("stem").value.trim() || null,
+            leaf: document.getElementById("leaf").value.trim() || null,
+            flower: document.getElementById("flower").value.trim() || null,
+            fruitOrSeed: document.getElementById("fruitOrSeed").value.trim() || null,
+            root: document.getElementById("root").value.trim() || null,
+            image: allImages.length > 0 ? allImages[0] : null,
+            families: familiesId ? { id: familiesId } : null
         };
 
         const dto = {
@@ -315,26 +435,17 @@
 
             if (response.ok) {
                 toastr.success("Đã gửi bài đăng thành công! Vui lòng chờ chuyên gia duyệt.");
-                setTimeout(() => {
-                    window.location.href = '/plant';
-                }, 2000);
+                setTimeout(() => { window.location.href = '/plant'; }, 2000);
             } else {
                 let errorMessage = "Có lỗi xảy ra khi tải lên";
                 try {
                     const errorText = await response.text();
                     if (errorText) {
-                        try {
-                            const errorJson = JSON.parse(errorText);
-                            errorMessage = errorJson.message || errorJson.defaultMessage || errorText;
-                        } catch (e) {
-                            errorMessage = errorText;
-                        }
+                        try { const errorJson = JSON.parse(errorText); errorMessage = errorJson.message || errorJson.defaultMessage || errorText; }
+                        catch (e) { errorMessage = errorText; }
                     }
-                } catch (e) {
-                    errorMessage = "Lỗi " + response.status + ": " + response.statusText;
-                }
+                } catch (e) { errorMessage = "Lỗi " + response.status; }
                 toastr.error(errorMessage);
-                console.error("Error response:", response.status, errorMessage);
             }
         } catch (err) {
             toastr.error("Lỗi kết nối!");

@@ -13,7 +13,10 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "chunk_embeddings")
+@Table(name = "chunk_embeddings", indexes = {
+    @Index(name = "idx_chunk_entity_name", columnList = "entity_name"),
+    @Index(name = "idx_chunk_content_type", columnList = "content_type")
+})
 public class ChunkEmbedding {
 
     @Id
