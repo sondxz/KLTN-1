@@ -812,3 +812,23 @@ body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
 .expert-info-bar strong {
     color: #333;
 }
+
+/* ===== Trạng thái online/offline của chuyên gia ===== */
+.status-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 6px;
+    transition: background-color 0.3s ease;
+    vertical-align: middle;
+}
+
+.status-dot.online {
+    background-color: #22c55e;  /* xanh */
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+
+.status-dot.offline {
+    background-color: #9ca3af;  /* xám */
+}

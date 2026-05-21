@@ -3,10 +3,41 @@ var currentConversationUserName = null;
 var expertMessagesStompClient = null;
 var currentExpertUser = null;
 
+// Reconnect & online status variables
+var expertMessagesReconnectAttempts = 0;
+var expertMessagesReconnectDelay = 1000;
+var expertMessagesMaxReconnectAttempts = 5;
+var expertMessagesReconnectTimer = null;
+
+// Online status tracking
+var expertMessagesOnlineUsers = {};
+var expertMessagesOfflineTimers = {};
+
 try {
     currentExpertUser = JSON.parse(localStorage.getItem("user"));
 } catch (e) {
     currentExpertUser = null;
+}
+
+/** Escape HTML to prevent XSS (global function) */
+function escapeHtml(text) {
+    if (!text) return '';
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/** Kiểm tra response lỗi (401, 403, 417...) */
+function checkResponseError(response) {
+    if (response.status === 401 || response.status === 403) {
+        toastr.error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+        setTimeout(function() { window.location.href = '/login'; }, 2000);
+        return true;
+    }
+    if (response.status === 417) {
+        return true; // MessageException, hiển thị toast từ caller
+    }
+    return false;
 }
 
 function connectExpertMessagesWebSocket() {
@@ -38,7 +69,9 @@ function connectExpertMessagesWebSocket() {
     }, function(frame) {
         expertMessagesReconnectAttempts = 0;
         expertMessagesReconnectDelay = 1000;
+        console.log('✅ Expert Messages WebSocket CONNECTED');
         
+        // Subscribe chat messages
         expertMessagesStompClient.subscribe('/topic/chat/' + currentExpertUser.id, function(message) {
             var data = JSON.parse(message.body);
             if (data.error) {
@@ -56,6 +89,43 @@ function connectExpertMessagesWebSocket() {
                 loadUnreadCount();
             }
         });
+
+        // Subscribe online status updates
+        expertMessagesStompClient.subscribe('/topic/expert-status', function(msg) {
+            var data = JSON.parse(msg.body);
+            console.log('📩 Expert Msg status update:', data);
+            if (data.online) {
+                if (expertMessagesOfflineTimers[data.userId]) {
+                    clearTimeout(expertMessagesOfflineTimers[data.userId]);
+                    delete expertMessagesOfflineTimers[data.userId];
+                }
+                expertMessagesOnlineUsers[data.userId] = true;
+            } else {
+                if (expertMessagesOfflineTimers[data.userId]) {
+                    clearTimeout(expertMessagesOfflineTimers[data.userId]);
+                }
+                expertMessagesOfflineTimers[data.userId] = setTimeout(function() {
+                    expertMessagesOnlineUsers[data.userId] = false;
+                    delete expertMessagesOfflineTimers[data.userId];
+                    refreshOnlineStatusDots();
+                }, 5000);
+            }
+            refreshOnlineStatusDots();
+        });
+
+        // Fetch initial online status
+        fetch('/api/expert/public/online-status')
+            .then(function(res) { return res.json(); })
+            .then(function(onlineIds) {
+                onlineIds.forEach(function(uid) {
+                    expertMessagesOnlineUsers[uid] = true;
+                });
+                refreshOnlineStatusDots();
+            })
+            .catch(function(err) {
+                console.error('Không thể tải trạng thái online:', err);
+            });
+
     }, function(error) {
         console.error('Expert Messages WebSocket connection error:', error);
         
@@ -101,6 +171,7 @@ async function loadConversationPartners() {
 // Hiển thị danh sách người đã nhắn tin
 function displayConversationPartners(partners) {
     const partnersList = document.getElementById('conversationPartnersList');
+    if (!partnersList) return;
     partnersList.innerHTML = '';
     
     if (partners.length === 0) {
@@ -109,15 +180,23 @@ function displayConversationPartners(partners) {
     }
     
     partners.forEach(partner => {
+        var partnerUserId = String(partner.id);
+        var isOnline = expertMessagesOnlineUsers[partnerUserId] === true;
+        var statusDotClass = isOnline ? 'online' : 'offline';
+        var statusTitle = isOnline ? 'Đang online' : 'Offline';
+        
         const partnerDiv = document.createElement('div');
         partnerDiv.className = 'list-group-item list-group-item-action cursor-pointer';
+        partnerDiv.setAttribute('data-message-user-id', partnerUserId);
         partnerDiv.innerHTML = `
             <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h6 class="mb-0">${partner.fullname || partner.username}</h6>
-                    <small class="text-muted">${partner.email}</small>
+                <div class="d-flex align-items-center">
+                    <div>
+                        <h6 class="mb-0">${escapeHtml(partner.fullname || partner.username)}<span class="status-dot ${statusDotClass}" style="margin-left:6px;" title="${statusTitle}"></span></h6>
+                        <small class="text-muted">${escapeHtml(partner.email || "")}</small>
+                    </div>
                 </div>
-                <button class="btn btn-sm btn-primary" onclick="openConversation(${partner.id}, '${partner.fullname || partner.username}')">
+                <button class="btn btn-sm btn-primary" onclick="openConversation(${partner.id}, '${escapeHtml(partner.fullname || partner.username)}')">
                     Xem
                 </button>
             </div>
@@ -126,39 +205,16 @@ function displayConversationPartners(partners) {
     });
 }
 
-function connectExpertMessagesWebSocket() {
-    if (!token || !currentExpertUser) {
-        console.error("No token or user found for expert messages");
-        return;
-    }
-
-    if (expertMessagesStompClient && expertMessagesStompClient.connected) {
-        expertMessagesStompClient.disconnect();
-    }
-
-    var socket = new SockJS('/ws');
-    expertMessagesStompClient = Stomp.over(socket);
-    
-    expertMessagesStompClient.connect({
-        'Authorization': 'Bearer ' + token
-    }, function(frame) {
-        expertMessagesStompClient.subscribe('/topic/chat/' + currentExpertUser.id, function(message) {
-            var data = JSON.parse(message.body);
-            if (data.error) {
-                toastr.error(data.error);
-            } else {
-                if (currentConversationUserId && 
-                    (data.senderId === currentConversationUserId || data.receiverId === currentConversationUserId)) {
-                    displayNewExpertMessage(data);
-                    if (data.receiverId === currentExpertUser.id) {
-                        markMessageAsRead(data.id);
-                        loadUnreadCount();
-                    }
-                }
-            }
-        });
-    }, function(error) {
-        console.error('Expert Messages WebSocket connection error:', error);
+/** Làm mới chấm trạng thái online cho tất cả user trong danh sách */
+function refreshOnlineStatusDots() {
+    var dots = document.querySelectorAll('[data-message-user-id] .status-dot');
+    dots.forEach(function(dot) {
+        var parent = dot.closest('[data-message-user-id]');
+        if (!parent) return;
+        var userId = parent.getAttribute('data-message-user-id');
+        var isOnline = expertMessagesOnlineUsers[userId] === true;
+        dot.className = 'status-dot ' + (isOnline ? 'online' : 'offline');
+        dot.title = isOnline ? 'Đang online' : 'Offline';
     });
 }
 
@@ -676,12 +732,7 @@ function displayExpertMessages(messages) {
             }
         }
         
-        // Escape HTML để tránh XSS
-        const escapeHtml = (text) => {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        };
+        // Escape HTML đã có global function escapeHtml() ở đầu file
         
         // Xử lý hiển thị file/hình ảnh
         let messageBody = '';

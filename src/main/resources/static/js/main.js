@@ -263,7 +263,71 @@ $( document ).ready(function() {
     if(token != null && (userRole === "ROLE_USER" || userRole === "ROLE_EXPERT")) {
         loadUnreadMessageCount();
     }
+    
+    // ===== KẾT NỐI WebSocket TOÀN CỤC =====
+    // Mục đích: ExpertStatusService ghi nhận online ngay khi user/expert đăng nhập vào bất kỳ trang nào.
+    // Chỉ cần connect, không cần subscribe — SessionConnectedEvent tự động kích hoạt tracking.
+    if (token != null && currentUser && currentUser.id) {
+        initGlobalWebSocket();
+    }
 });
+
+/** Kết nối WebSocket toàn cục (dùng cho mọi trang) */
+var globalStompClient = null;
+var globalReconnectTimer = null;
+var globalReconnectAttempts = 0;
+var globalMaxReconnectAttempts = 10;
+
+function initGlobalWebSocket() {
+    if (globalReconnectTimer) {
+        clearTimeout(globalReconnectTimer);
+        globalReconnectTimer = null;
+    }
+    if (globalStompClient && globalStompClient.connected) return;
+    
+    // Dynamic load SockJS + Stomp nếu chưa có
+    var loadScripts = [];
+    if (typeof SockJS === 'undefined') {
+        loadScripts.push($.getScript('https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js'));
+    }
+    if (typeof Stomp === 'undefined') {
+        loadScripts.push($.getScript('https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js'));
+    }
+    
+    var doConnect = function() {
+        try {
+            var socket = new SockJS('/ws');
+            globalStompClient = Stomp.over(socket);
+            globalStompClient.debug = null;
+            
+            globalStompClient.connect(
+                { 'Authorization': 'Bearer ' + token },
+                function onConnect() {
+                    globalReconnectAttempts = 0;
+                    console.log('✅ Global WebSocket CONNECTED (userId=' + currentUser.id + ')');
+                },
+                function onError(err) {
+                    console.error('Global WebSocket error:', err);
+                    if (globalReconnectAttempts < globalMaxReconnectAttempts) {
+                        globalReconnectAttempts++;
+                        var delay = Math.min(globalReconnectAttempts * 2000, 30000);
+                        globalReconnectTimer = setTimeout(initGlobalWebSocket, delay);
+                    }
+                }
+            );
+        } catch(e) {
+            console.error('Global WebSocket init error:', e);
+        }
+    };
+    
+    if (loadScripts.length > 0) {
+        $.when.apply($, loadScripts).done(doConnect).fail(function() {
+            console.error('Không thể tải SockJS/Stomp cho WebSocket toàn cục');
+        });
+    } else {
+        doConnect();
+    }
+}
 
 
 function logout(){

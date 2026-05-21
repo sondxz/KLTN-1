@@ -7,12 +7,15 @@ import com.web.entity.Research;
 import com.web.enums.ArticleStatus;
 import com.web.service.DiseasesService;
 import com.web.service.ExpertService;
+import com.web.service.ExpertStatusService;
 import com.web.service.ResearchService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/expert")
@@ -22,7 +25,15 @@ public class ExpertApi {
     private ExpertService expertService;
 
     @Autowired
+    private ExpertStatusService expertStatusService;
+
+    @Autowired
     private ResearchService researchService;
+
+    @GetMapping("/public/online-status")
+    public ResponseEntity<Set<String>> getOnlineExperts() {
+        return ResponseEntity.ok(expertStatusService.getOnlineUserIds());
+    }
 
     @GetMapping("/admin/all")
     public Page<Expert> getAll(Pageable pageable,@RequestParam(required = false) String q) {

@@ -42,4 +42,4 @@ src/main/resources/application-prod.properties
 .env.local
 .env.production
 *.sql
-KE_HOACH_NANG_CAP_CHATRAG.md
+*.md

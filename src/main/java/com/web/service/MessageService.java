@@ -29,6 +29,9 @@ public class MessageService {
     @Autowired
     private UserUtils userUtils;
 
+    @Autowired
+    private NotificationService notificationService;
+
     // User gửi tin nhắn cho Expert
     @Transactional
     public Message sendMessage(Long expertUserId, String content, String messageType, String fileUrl, String fileName, String fileType) {
@@ -56,7 +59,12 @@ public class MessageService {
         message.setFileType(fileType);
         message.setIsRead(false);
 
-        return messageRepository.save(message);
+        Message savedMessage = messageRepository.save(message);
+
+        // Gửi email thông báo cho Expert (async, không block)
+        notificationService.notifyNewMessage(savedMessage);
+
+        return savedMessage;
     }
 
     // Expert trả lời tin nhắn
@@ -96,7 +104,12 @@ public class MessageService {
         reply.setFileType(fileType);
         reply.setIsRead(false);
 
-        return messageRepository.save(reply);
+        Message savedReply = messageRepository.save(reply);
+
+        // Gửi email thông báo cho User (async, không block)
+        notificationService.notifyNewReply(savedReply);
+
+        return savedReply;
     }
 
     // Lấy conversation giữa user và expert

@@ -8,6 +8,10 @@ var userMessagesMaxReconnectAttempts = 5;
 var userMessagesReconnectDelay = 1000;
 var userMessagesReconnectTimer = null;
 
+// Online status tracking cho danh sách chuyên gia
+var userMessagesOnlineUsers = {};
+var userMessagesOfflineTimers = {};
+
 // Lấy thông tin user hiện tại
 try {
     currentUser = JSON.parse(localStorage.getItem("user"));
@@ -75,6 +79,38 @@ function connectUserMessagesWebSocket() {
                 loadUnreadCount();
             }
         });
+
+        // Subscribe trạng thái online/offline của expert
+        userMessagesStompClient.subscribe('/topic/expert-status', function(msg) {
+            var data = JSON.parse(msg.body);
+            if (data.online) {
+                if (userMessagesOfflineTimers[data.userId]) {
+                    clearTimeout(userMessagesOfflineTimers[data.userId]);
+                    delete userMessagesOfflineTimers[data.userId];
+                }
+                userMessagesOnlineUsers[data.userId] = true;
+            } else {
+                if (userMessagesOfflineTimers[data.userId]) {
+                    clearTimeout(userMessagesOfflineTimers[data.userId]);
+                }
+                userMessagesOfflineTimers[data.userId] = setTimeout(function() {
+                    userMessagesOnlineUsers[data.userId] = false;
+                    delete userMessagesOfflineTimers[data.userId];
+                    refreshUserMessagesStatusDots();
+                }, 5000);
+            }
+            refreshUserMessagesStatusDots();
+        });
+
+        // Fetch danh sách online hiện tại
+        fetch('/api/expert/public/online-status')
+            .then(function(res) { return res.json(); })
+            .then(function(onlineIds) {
+                onlineIds.forEach(function(uid) { userMessagesOnlineUsers[uid] = true; });
+                refreshUserMessagesStatusDots();
+            })
+            .catch(function(err) { console.error('Lỗi tải online status:', err); });
+
     }, function(error) {
         console.error('User Messages WebSocket connection error:', error);
         
@@ -132,13 +168,17 @@ function displayExpertsList(experts) {
     
     let html = '';
     experts.forEach(expert => {
+        var expertUserId = String(expert.id);
+        var isOnline = userMessagesOnlineUsers[expertUserId] === true;
+        var dotClass = isOnline ? 'online' : 'offline';
+        var dotTitle = isOnline ? 'Đang online' : 'Offline';
         html += `
-            <a href="#" class="list-group-item list-group-item-action" onclick="openConversation(${expert.id}, '${escapeHtml(expert.fullname || expert.username)}')">
+            <a href="#" class="list-group-item list-group-item-action" onclick="openConversation(${expert.id}, '${escapeHtml(expert.fullname || expert.username)}')" data-msg-expert-id="${expertUserId}">
                 <div class="d-flex w-100 justify-content-between align-items-center">
                     <div class="d-flex align-items-center">
                         <i class="bi bi-person-circle me-2 fs-4 text-primary"></i>
                         <div>
-                            <h6 class="mb-0">${escapeHtml(expert.fullname || expert.username)}</h6>
+                            <h6 class="mb-0 d-flex align-items-center">${escapeHtml(expert.fullname || expert.username)}<span class="status-dot ${dotClass}" style="margin-left:6px;" title="${dotTitle}"></span></h6>
                             <small class="text-muted">Chuyên gia</small>
                         </div>
                     </div>
@@ -148,6 +188,19 @@ function displayExpertsList(experts) {
     });
     
     expertsList.innerHTML = html;
+}
+
+/** Làm mới chấm trạng thái online cho danh sách chuyên gia */
+function refreshUserMessagesStatusDots() {
+    var dots = document.querySelectorAll('[data-msg-expert-id] .status-dot');
+    dots.forEach(function(dot) {
+        var parent = dot.closest('[data-msg-expert-id]');
+        if (!parent) return;
+        var userId = parent.getAttribute('data-msg-expert-id');
+        var isOnline = userMessagesOnlineUsers[userId] === true;
+        dot.className = 'status-dot ' + (isOnline ? 'online' : 'offline');
+        dot.title = isOnline ? 'Đang online' : 'Offline';
+    });
 }
 
 // Mở conversation với expert

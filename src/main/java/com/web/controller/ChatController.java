@@ -5,6 +5,7 @@ import com.web.entity.User;
 import com.web.repository.MessageRepository;
 import com.web.repository.UserRepository;
 import com.web.service.MessageService;
+import com.web.service.NotificationService;
 import com.web.service.RateLimitService;
 import com.web.utils.MessageValidator;
 import org.slf4j.Logger;
@@ -42,6 +43,9 @@ public class ChatController {
 
     @Autowired
     private RateLimitService rateLimitService;
+
+    @Autowired
+    private NotificationService notificationService;
 
     /**
      * Xử lý tin nhắn từ client
@@ -146,6 +150,9 @@ public class ChatController {
             
             // Gửi lại cho người gửi để confirm
             messagingTemplate.convertAndSend("/topic/chat/" + senderId, response);
+
+            // Gửi email thông báo (async, không block)
+            notificationService.notifyNewMessage(savedMessage);
 
             logger.info("Message sent from user {} to user {}", senderId, receiverId);
 

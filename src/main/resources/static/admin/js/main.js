@@ -107,6 +107,12 @@ var navbarAdmin =
 document.getElementById("navbar-admin").innerHTML = navbarAdmin
 lucide.createIcons();
     setActiveMenu();
+    
+    // ===== KẾT NỐI WebSocket TOÀN CỤC =====
+    // Mục đích: ExpertStatusService ghi nhận online ngay khi expert/admin đăng nhập vào bất kỳ trang admin nào.
+    if (token != null && currentUser && currentUser.id) {
+        initGlobalAdminWebSocket();
+    }
 });
 
 function setActiveMenu() {
@@ -148,4 +154,61 @@ function checkResponseError(response) {
         return true;
     }
     return false;
+}
+
+// ===== KẾT NỐI WebSocket TOÀN CỤC (Admin/Expert) =====
+var globalAdminStompClient = null;
+var globalAdminReconnectTimer = null;
+var globalAdminReconnectAttempts = 0;
+var globalAdminMaxReconnectAttempts = 10;
+
+function initGlobalAdminWebSocket() {
+    if (globalAdminReconnectTimer) {
+        clearTimeout(globalAdminReconnectTimer);
+        globalAdminReconnectTimer = null;
+    }
+    if (globalAdminStompClient && globalAdminStompClient.connected) return;
+    
+    // Dynamic load SockJS + Stomp nếu chưa có
+    var loadScripts = [];
+    if (typeof SockJS === 'undefined') {
+        loadScripts.push($.getScript('https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js'));
+    }
+    if (typeof Stomp === 'undefined') {
+        loadScripts.push($.getScript('https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js'));
+    }
+    
+    var doConnect = function() {
+        try {
+            var socket = new SockJS('/ws');
+            globalAdminStompClient = Stomp.over(socket);
+            globalAdminStompClient.debug = null;
+            
+            globalAdminStompClient.connect(
+                { 'Authorization': 'Bearer ' + token },
+                function onConnect() {
+                    globalAdminReconnectAttempts = 0;
+                    console.log('✅ Global Admin WebSocket CONNECTED (userId=' + currentUser.id + ')');
+                },
+                function onError(err) {
+                    console.error('Global Admin WebSocket error:', err);
+                    if (globalAdminReconnectAttempts < globalAdminMaxReconnectAttempts) {
+                        globalAdminReconnectAttempts++;
+                        var delay = Math.min(globalAdminReconnectAttempts * 2000, 30000);
+                        globalAdminReconnectTimer = setTimeout(initGlobalAdminWebSocket, delay);
+                    }
+                }
+            );
+        } catch(e) {
+            console.error('Global Admin WebSocket init error:', e);
+        }
+    };
+    
+    if (loadScripts.length > 0) {
+        $.when.apply($, loadScripts).done(doConnect).fail(function() {
+            console.error('Không thể tải SockJS/Stomp cho WebSocket Admin');
+        });
+    } else {
+        doConnect();
+    }
 }

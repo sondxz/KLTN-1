@@ -78,3 +78,63 @@ SELECT fr.id, p.id
 FROM folk_remedies fr
 INNER JOIN plants p ON fr.slug = CONCAT(p.slug, '-bai-thuoc')
 WHERE fr.slug LIKE '%-bai-thuoc';
+
+
+-- ========================================
+-- MIGRATION PHẦN 3: Bảng messages cho Chat Realtime
+-- ========================================
+
+CREATE TABLE IF NOT EXISTS messages (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  sender_id BIGINT NOT NULL,
+  receiver_id BIGINT NOT NULL,
+  content TEXT,
+  file_url VARCHAR(500),
+  file_name VARCHAR(255),
+  file_type VARCHAR(50),
+  message_type VARCHAR(20) NOT NULL DEFAULT 'text',
+  is_read TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_sender (sender_id),
+  INDEX idx_receiver (receiver_id),
+  INDEX idx_created_at (created_at),
+  FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ========================================
+-- MIGRATION PHẦN 4: Bổ sung cột cho bảng articles (nếu thiếu)
+-- Chạy an toàn: bỏ qua lỗi nếu cột đã tồn tại
+-- ========================================
+
+DELIMITER //
+CREATE PROCEDURE IF NOT EXISTS add_column_if_missing(
+    IN tbl_name VARCHAR(64),
+    IN col_name VARCHAR(64),
+    IN col_def VARCHAR(255)
+)
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = tbl_name 
+          AND COLUMN_NAME = col_name
+    ) THEN
+        SET @sql = CONCAT('ALTER TABLE ', tbl_name, ' ADD COLUMN ', col_name, ' ', col_def);
+        PREPARE stmt FROM @sql;
+        EXECUTE stmt;
+        DEALLOCATE PREPARE stmt;
+    END IF;
+END //
+DELIMITER ;
+
+CALL add_column_if_missing('articles', 'article_status', 'VARCHAR(20) DEFAULT ''CHO_DUYET''');
+CALL add_column_if_missing('articles', 'published_at', 'TIMESTAMP NULL');
+CALL add_column_if_missing('articles', 'view_count', 'BIGINT DEFAULT 0');
+CALL add_column_if_missing('articles', 'is_featured', 'TINYINT(1) DEFAULT 0');
+CALL add_column_if_missing('articles', 'allow_comments', 'TINYINT(1) DEFAULT 1');
+CALL add_column_if_missing('articles', 'user_id', 'BIGINT');
+CALL add_column_if_missing('articles', 'diseases_id', 'BIGINT');
+
+DROP PROCEDURE IF EXISTS add_column_if_missing;
