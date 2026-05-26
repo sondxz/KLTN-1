@@ -61,7 +61,7 @@ public class User{
     private Authority authorities;
 
     @OneToOne(mappedBy = "user")
-    @JsonIgnoreProperties({"user"})
+    @JsonIgnore
     private Expert expert;
 
 }

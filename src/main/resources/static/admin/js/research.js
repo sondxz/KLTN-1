@@ -272,26 +272,64 @@ async function saveReseach() {
     const editorInstance = initResearchEditor();
     var uls = new URL(document.URL)
     var idPlant = uls.searchParams.get("id");
+    
+    // ===== VALIDATE =====
+    var title = document.getElementById("title").value.trim();
+    var slug = document.getElementById("slug").value.trim();
+    var abstractText = document.getElementById("abstractText").value.trim();
+    var content = editorInstance ? editorInstance.root.innerHTML.trim() : '';
+    var authorsText = document.getElementById("authors").value.trim();
+    var expertIds = $("#experts").val() || [];
+    var plantIds = $("#plants").val() || [];
+    
+    if (!title) {
+        toastr.error("Vui lòng nhập tiêu đề nghiên cứu");
+        document.getElementById("title").focus();
+        return;
+    }
+    if (!slug) {
+        toastr.error("Vui lòng nhập slug");
+        document.getElementById("slug").focus();
+        return;
+    }
+    if (!abstractText) {
+        toastr.error("Vui lòng nhập tóm tắt nghiên cứu");
+        document.getElementById("abstractText").focus();
+        return;
+    }
+    if (!content || content === '<p><br></p>' || content === '<p></p>') {
+        toastr.error("Vui lòng nhập nội dung nghiên cứu");
+        return;
+    }
+    if ((!expertIds || expertIds.length === 0) && !authorsText) {
+        toastr.error("Vui lòng chọn ít nhất 1 tác giả (chuyên gia) hoặc nhập tên tác giả");
+        return;
+    }
+    if (!plantIds || plantIds.length === 0) {
+        toastr.error("Vui lòng chọn ít nhất 1 cây dược liệu liên quan");
+        return;
+    }
+    
     var dto = 
     {
         research:{
             id:idPlant,
-            title:document.getElementById("title").value,
-            slug:document.getElementById("slug").value,
-            abstractText:document.getElementById("abstractText").value,
-            content: editorInstance ? editorInstance.root.innerHTML : '',
-            authors:null, // Sẽ được set từ authorsText
-            institution:document.getElementById("institution").value,
+            title: title,
+            slug: slug,
+            abstractText: abstractText,
+            content: content,
+            authors:null,
+            institution:document.getElementById("institution").value.trim(),
             publishedYear:document.getElementById("publishedYear").value,
-            journal:document.getElementById("journal").value,
+            journal:document.getElementById("journal").value.trim(),
             field:document.getElementById("field").value,
             researchStatus:document.getElementById("status").value,
             linkDocument:window.documentPlant,
             imageBanner:window.uploadedImageBanner,
         },
-        plantId: $("#plants").val(),
-        expertIds: $("#experts").val() || [],
-        authorsText: document.getElementById("authors").value.trim() || null
+        plantId: plantIds,
+        expertIds: expertIds,
+        authorsText: authorsText || null
     }
 
     const response = await fetch(`/api/research/admin/save`, {

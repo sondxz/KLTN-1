@@ -27,8 +27,11 @@ public class UserPlantController {
 
     @RequestMapping(value = {"/plant-detail/{slug}"}, method = RequestMethod.GET)
     public String plantDetail(Model model, @PathVariable String slug, HttpSession session) {
-        // Chỉ cho phép truy cập cây dược liệu đã xuất bản (public)
+        // Tìm plant không giới hạn status (cho phép admin/expert xem cây CHỜ DUYỆT từ trang pending-approval)
         Plant plant = plantService.findBySlugPublic(slug);
+        if(plant == null){
+            plant = plantService.findBySlug(slug); // fallback: tìm tất cả status
+        }
         if(plant == null){
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "plant not found");
         }

@@ -96,7 +96,7 @@ var navbarAdmin =
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
               <li><h6 class="dropdown-header">Tài khoản của tôi</h6></li>
-              <li><a class="dropdown-item" href="#"><i data-lucide="user-circle" class="me-2"></i>Hồ sơ</a></li>
+              <li><a class="dropdown-item" href="/my-account"><i data-lucide="user-circle" class="me-2"></i>Hồ sơ</a></li>
               <li><a class="dropdown-item" href="#"><i data-lucide="settings" class="me-2"></i>Cài đặt</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item text-danger" href="#" onclick="logout()"><i data-lucide="log-out" class="me-2"></i>Đăng xuất</a></li>

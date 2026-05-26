@@ -179,6 +179,17 @@ public class UserApi {
         return new ResponseEntity<>(stats, HttpStatus.OK);
     }
 
+    @GetMapping("/admin/export-users")
+    public void exportUsers(
+            javax.servlet.http.HttpServletResponse response,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String role
+    ) throws Exception {
+        response.setContentType("text/csv; charset=UTF-8");
+        response.setHeader("Content-Disposition", "attachment; filename=\"users_export.csv\"");
+        userService.writeUsersToCsv(response.getWriter(), q, role);
+    }
+
     @PostMapping("/public/dat-lai-mat-khau")
     public ResponseEntity<?> datLaiMatKhau(@RequestBody java.util.Map<String, String> request) {
         try {

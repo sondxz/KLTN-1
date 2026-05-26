@@ -259,6 +259,47 @@ public class UserService {
         }
         return page;
     }
+    /**
+     * Ghi danh sách người dùng ra CSV.
+     */
+    public void writeUsersToCsv(Writer writer, String q, String role) {
+        try {
+            String search = (q != null && !q.trim().isEmpty()) ? q.trim() : null;
+            List<User> list;
+            if (role != null && !role.isEmpty()) {
+                list = userRepository.getUserByRoleAll(search, role);
+            } else {
+                list = userRepository.findAllForExport(search);
+            }
+            writer.write("ID,HO_TEN,USERNAME,EMAIL,SDT,VAI_TRO,TRANG_THAI,NGAY_TAO\n");
+            for (User u : list) {
+                String line = String.format(
+                        "%d,%s,%s,%s,%s,%s,%s,%s\n",
+                        u.getId(),
+                        escapeCsv(u.getFullname()),
+                        escapeCsv(u.getUsername()),
+                        escapeCsv(u.getEmail()),
+                        escapeCsv(u.getPhone()),
+                        u.getAuthorities() != null ? escapeCsv(u.getAuthorities().getName()) : "",
+                        u.getActived() != null && u.getActived() ? "Hoạt động" : "Đang khóa",
+                        u.getCreatedDate() != null ? u.getCreatedDate().toString() : ""
+                );
+                writer.write(line);
+            }
+            writer.flush();
+        } catch (IOException e) {
+            throw new MessageException("Lỗi khi xuất dữ liệu người dùng: " + e.getMessage());
+        }
+    }
+
+    private String escapeCsv(String value) {
+        if (value == null) return "";
+        String v = value.replace("\"", "\"\"");
+        if (v.contains(",") || v.contains("\"") || v.contains("\n")) {
+            return "\"" + v + "\"";
+        }
+        return v;
+    }
 
     
     public void changePass(String oldPass, String newPass) {
@@ -397,42 +438,5 @@ public class UserService {
         catch (Exception e){
             throw new MessageException("Tài khoản này không thể xóa do có liên kết dữ liệu, hãy khóa tài khoản");
         }
-    }
-
-    /**
-     * Ghi danh sách người dùng ra CSV.
-     */
-    public void writeUsersToCsv(Writer writer, String q, String role) {
-        try {
-            String search = (q != null) ? "%" + q.trim() + "%" : "%%";
-            Page<User> page = getUserByRole(search, role, Pageable.unpaged());
-            List<User> list = page.getContent();
-            writer.write("ID,FULLNAME,USERNAME,EMAIL,ROLE,TRANG_THAI,NGAY_TAO\n");
-            for (User u : list) {
-                String line = String.format(
-                        "%d,%s,%s,%s,%s,%s,%s\n",
-                        u.getId(),
-                        escapeCsv(u.getFullname()),
-                        escapeCsv(u.getUsername()),
-                        escapeCsv(u.getEmail()),
-                        u.getAuthorities() != null ? escapeCsv(u.getAuthorities().getName()) : "",
-                        Boolean.TRUE.equals(u.getActived()) ? "ACTIVE" : "INACTIVE",
-                        u.getCreatedDate() != null ? u.getCreatedDate().toString() : ""
-                );
-                writer.write(line);
-            }
-            writer.flush();
-        } catch (IOException e) {
-            throw new MessageException("Lỗi khi xuất dữ liệu người dùng: " + e.getMessage());
-        }
-    }
-
-    private String escapeCsv(String value) {
-        if (value == null) return "";
-        String v = value.replace("\"", "\"\"");
-        if (v.contains(",") || v.contains("\"") || v.contains("\n")) {
-            return "\"" + v + "\"";
-        }
-        return v;
     }
 }

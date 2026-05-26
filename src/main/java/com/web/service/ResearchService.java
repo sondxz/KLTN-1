@@ -75,6 +75,29 @@ public class ResearchService {
     @Transactional
     public Research save(ResearchRequest request) {
         Research research = request.getResearch();
+        
+        // ===== VALIDATE =====
+        if (research.getTitle() == null || research.getTitle().trim().isEmpty()) {
+            throw new MessageException("Tiêu đề không được để trống");
+        }
+        if (research.getContent() == null || research.getContent().trim().isEmpty() 
+                || research.getContent().equals("<p><br></p>") || research.getContent().equals("<p></p>")) {
+            throw new MessageException("Nội dung không được để trống");
+        }
+        if (research.getAbstractText() == null || research.getAbstractText().trim().isEmpty()) {
+            throw new MessageException("Tóm tắt không được để trống");
+        }
+        // Phải có ít nhất 1 tác giả (expert hoặc text)
+        boolean hasAuthors = (request.getExpertIds() != null && !request.getExpertIds().isEmpty())
+                || (request.getAuthorsText() != null && !request.getAuthorsText().trim().isEmpty());
+        if (!hasAuthors) {
+            throw new MessageException("Vui lòng chọn ít nhất 1 tác giả hoặc nhập tên tác giả");
+        }
+        // Phải có ít nhất 1 cây dược liệu liên quan
+        if (request.getPlantId() == null || request.getPlantId().isEmpty()) {
+            throw new MessageException("Vui lòng chọn ít nhất 1 cây dược liệu liên quan");
+        }
+        
         if (research.getId() == null) {
             // Tạo mới
             if (researchRepository.existsByTitle(research.getTitle())) {

@@ -21,8 +21,11 @@ public class UserArticleController {
 
     @RequestMapping(value = {"/article-detail/{slug}"}, method = RequestMethod.GET)
     public String articleDetail(Model model, @PathVariable String slug, HttpSession session) {
-        // Chỉ cho phép truy cập bài viết đã xuất bản (public)
+        // Tìm bài viết public trước, fallback tìm tất cả (cho admin xem bài CHỜ DUYỆT)
         Article article = articleService.findBySlugPublic(slug);
+        if(article == null){
+            article = articleService.findBySlug(slug);
+        }
         if(article == null){
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "article not found");
         }

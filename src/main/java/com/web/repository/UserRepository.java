@@ -55,4 +55,11 @@ public interface UserRepository extends JpaRepository<User,Long> {
 
     @Query("select count(u) from User u where u.createdDate >= ?1")
     Long countByCreatedAtAfter(java.time.LocalDateTime date);
+
+    // For CSV export
+    @Query("select u from User u where u.email like ?1 or u.fullname like ?1 or u.phone like ?1 or u.username like ?1")
+    List<User> findAllForExport(String search);
+
+    @Query("select u from User u where u.authorities.name = ?2 and (u.email like ?1 or u.fullname like ?1 or u.username like ?1 or u.phone like ?1)")
+    List<User> getUserByRoleAll(String search, String role);
 }

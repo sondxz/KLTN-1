@@ -46,12 +46,28 @@ async function loadAllUser(page) {
                 </tr>`
     }
     document.getElementById("listuser").innerHTML = main
-    var mainpage = ''
-    for (i = 1; i <= totalPage; i++) {
-        mainpage += `<li onclick="loadAllUser(${(Number(i) - 1)})" class="page-item"><a class="page-link" href="#listsp">${i}</a></li>`
+    document.getElementById("numElm").innerText = `Đang hiển thị ${start} - ${end} trong ${result.totalElements} kết quả`
+    
+    // Phân trang kiểu giống trang cây dược liệu: prev, number, next, active
+    renderPagination(page, totalPage);
+}
+
+function renderPagination(currentPage, totalPages) {
+    let mainpage = '';
+    if (currentPage > 0) {
+        mainpage += `<li class="page-item" onclick="loadAllUser(${currentPage - 1})"><a class="page-link" href="#">&laquo;</a></li>`;
+    }
+    for (let i = 0; i < totalPages; i++) {
+        if (i === currentPage) {
+            mainpage += `<li class="page-item active"><a class="page-link" href="#">${i + 1}</a></li>`;
+        } else {
+            mainpage += `<li class="page-item" onclick="loadAllUser(${i})"><a class="page-link" href="#">${i + 1}</a></li>`;
+        }
+    }
+    if (currentPage < totalPages - 1) {
+        mainpage += `<li class="page-item" onclick="loadAllUser(${currentPage + 1})"><a class="page-link" href="#">&raquo;</a></li>`;
     }
     document.getElementById("pageable").innerHTML = mainpage
-    document.getElementById("numElm").innerText = `Đang hiển thị ${start} - ${end} trong ${result.totalElements} kết quả`
 }
 
 

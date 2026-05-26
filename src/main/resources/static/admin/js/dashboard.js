@@ -152,6 +152,36 @@ function displayMainStats(stats) {
                 </div>
             </div>
         </div>
+        <div class="col-md-6 col-lg-3 mt-4">
+            <div class="card stat-card warning shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="stat-label">Tổng chuyên gia</div>
+                            <div class="stat-value text-warning">${formatNumber(stats.totalExperts || 0)}</div>
+                        </div>
+                        <div class="bg-warning bg-opacity-10 rounded p-3">
+                            <i data-lucide="user-check" class="text-warning" style="width: 32px; height: 32px;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3 mt-4">
+            <div class="card stat-card success shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="stat-label">Danh mục bệnh</div>
+                            <div class="stat-value text-success">${formatNumber(stats.totalDiseases || 0)}</div>
+                        </div>
+                        <div class="bg-success bg-opacity-10 rounded p-3">
+                            <i data-lucide="stethoscope" class="text-success" style="width: 32px; height: 32px;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     `;
 
     document.getElementById('mainStatsCards').innerHTML = cardsHtml;

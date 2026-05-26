@@ -179,11 +179,15 @@ public class ExpertService {
         return expertRepository.save(existingExpert);
     }
 
+    @Transactional
     public void delete(Long id) {
         Expert expert = findById(id);
-        // Xóa User account nếu có
-        if (expert.getUser() != null) {
-            userRepository.delete(expert.getUser());
+        // Ngắt liên kết Expert->User trước, rồi xóa User, cuối cùng xóa Expert
+        User user = expert.getUser();
+        if (user != null) {
+            expert.setUser(null);
+            expertRepository.save(expert);
+            userRepository.delete(user);
         }
         expertRepository.deleteById(id);
     }
