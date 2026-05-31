@@ -40,17 +40,21 @@ public interface ArticleRepository extends JpaRepository<Article, Long>, JpaSpec
     Page<Article> findAllByParam(@Param("search") String search, @Param("status") String status, Pageable pageable);
 
     @Query(value = """
-            SELECT a.* FROM articles a
+            SELECT DISTINCT a.* FROM articles a
             WHERE (:search IS NULL OR :search = '' OR
-                   MATCH(a.title, a.excerpt) AGAINST(:search IN NATURAL LANGUAGE MODE))
+                   LOWER(a.title) LIKE LOWER(CONCAT('%', :search, '%'))
+                OR LOWER(a.excerpt) LIKE LOWER(CONCAT('%', :search, '%'))
+                OR LOWER(a.content) LIKE LOWER(CONCAT('%', :search, '%')))
               AND (:diseasesId IS NULL OR a.diseases_id = :diseasesId)
               AND a.article_status = 'DA_XUAT_BAN'
             ORDER BY a.created_at DESC
             """,
             countQuery = """
-            SELECT COUNT(*) FROM articles a
+            SELECT COUNT(DISTINCT a.id) FROM articles a
             WHERE (:search IS NULL OR :search = '' OR
-                   MATCH(a.title, a.excerpt) AGAINST(:search IN NATURAL LANGUAGE MODE))
+                   LOWER(a.title) LIKE LOWER(CONCAT('%', :search, '%'))
+                OR LOWER(a.excerpt) LIKE LOWER(CONCAT('%', :search, '%'))
+                OR LOWER(a.content) LIKE LOWER(CONCAT('%', :search, '%')))
               AND (:diseasesId IS NULL OR a.diseases_id = :diseasesId)
               AND a.article_status = 'DA_XUAT_BAN'
             """,

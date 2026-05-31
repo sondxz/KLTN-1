@@ -38,7 +38,7 @@
     <div class="row g-3">
       <div class="col-md-7">
         <div class="position-relative">
-          <input onkeyup="loadAllArticle(0)" id="param" type="text" class="form-control pe-5" placeholder="Tìm kiếm bài viết theo tiêu đề, nội dung...">
+          <input oninput="debounceArticleSearch()" id="param" type="text" class="form-control pe-5" placeholder="Tìm kiếm bài viết theo tiêu đề, nội dung...">
           <button class="btn btn-sm btn-link position-absolute end-0 top-50 translate-middle-y text-secondary">
             <i class="bi bi-search"></i>
           </button>
@@ -55,7 +55,7 @@
           <option value="id,asc">Cũ nhất</option>
           <option value="title,asc">Tiêu đề A-Z</option>
           <option value="title,desc">Tiêu đề Z-A</option>
-          <option value="views,desc">Xem nhiều nhất</option>
+          <option value="viewCount,desc">Xem nhiều nhất</option>
         </select>
       </div>
     </div>

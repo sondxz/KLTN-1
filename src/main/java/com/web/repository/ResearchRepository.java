@@ -25,22 +25,26 @@ public interface ResearchRepository extends JpaRepository<Research, Long>, JpaSp
     Page<Research> findAllByParam(String search, ResearchStatus status, Pageable pageable);
 
     @Query(value = """
-            SELECT r.* FROM research r
+            SELECT DISTINCT r.* FROM research r
             WHERE (:search IS NULL OR :search = '' OR
-                   MATCH(r.title, r.authors) AGAINST(:search IN NATURAL LANGUAGE MODE))
+                   LOWER(r.title) LIKE LOWER(CONCAT('%', :search, '%'))
+                OR LOWER(r.authors) LIKE LOWER(CONCAT('%', :search, '%'))
+                OR LOWER(r.`abstract`) LIKE LOWER(CONCAT('%', :search, '%'))
+                OR LOWER(r.content) LIKE LOWER(CONCAT('%', :search, '%')))
               AND (:field IS NULL OR r.field = :field)
               AND (:publishedYear IS NULL OR r.published_year = :publishedYear)
-              -- 2 tương ứng với ResearchStatus.DA_XUAT_BAN (enum ordinal)
               AND r.research_status = 2
             ORDER BY r.created_at DESC
             """,
             countQuery = """
-            SELECT COUNT(*) FROM research r
+            SELECT COUNT(DISTINCT r.id) FROM research r
             WHERE (:search IS NULL OR :search = '' OR
-                   MATCH(r.title, r.authors) AGAINST(:search IN NATURAL LANGUAGE MODE))
+                   LOWER(r.title) LIKE LOWER(CONCAT('%', :search, '%'))
+                OR LOWER(r.authors) LIKE LOWER(CONCAT('%', :search, '%'))
+                OR LOWER(r.`abstract`) LIKE LOWER(CONCAT('%', :search, '%'))
+                OR LOWER(r.content) LIKE LOWER(CONCAT('%', :search, '%')))
               AND (:field IS NULL OR r.field = :field)
               AND (:publishedYear IS NULL OR r.published_year = :publishedYear)
-              -- 2 tương ứng với ResearchStatus.DA_XUAT_BAN (enum ordinal)
               AND r.research_status = 2
             """,
             nativeQuery = true)

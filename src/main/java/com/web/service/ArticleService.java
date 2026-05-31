@@ -48,11 +48,47 @@ public class ArticleService {
     }
 
     public Page<Article> getAllPublic(String search, Long diseasesId, Pageable pageable) {
-        return articleRepository.findAllByParam(
+        // Lấy sort từ pageable, tạm thời gọi repo với Pageable không sort (dùng ORDER BY mặc định)
+        // Sau đó sort trong Java theo yêu cầu
+        org.springframework.data.domain.Sort sort = pageable.getSort();
+        Pageable unsortedPageable = org.springframework.data.domain.PageRequest.of(
+            pageable.getPageNumber(), pageable.getPageSize());
+        
+        Page<Article> page = articleRepository.findAllByParam(
                 (search == null || search.trim().isEmpty()) ? null : search.trim(),
                 diseasesId,
-                pageable
+                unsortedPageable
         );
+        
+        // Nếu có sort, sort lại trong Java
+        if (sort.isSorted()) {
+            java.util.List<Article> sorted = new java.util.ArrayList<>(page.getContent());
+            sort.forEach(order -> {
+                java.util.Comparator<Article> comparator = null;
+                String prop = order.getProperty();
+                if ("id".equals(prop)) {
+                    comparator = java.util.Comparator.comparing(Article::getId, 
+                        java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder()));
+                } else if ("title".equals(prop)) {
+                    comparator = java.util.Comparator.comparing(
+                        a -> a.getTitle() != null ? a.getTitle().toLowerCase() : "", 
+                        java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder()));
+                } else if ("viewCount".equals(prop)) {
+                    comparator = java.util.Comparator.comparing(Article::getViewCount,
+                        java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder()));
+                } else if ("createdAt".equals(prop)) {
+                    comparator = java.util.Comparator.comparing(Article::getCreatedAt,
+                        java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder()));
+                }
+                if (comparator != null) {
+                    if (order.isDescending()) comparator = comparator.reversed();
+                    sorted.sort(comparator);
+                }
+            });
+            return new org.springframework.data.domain.PageImpl<>(sorted, pageable, page.getTotalElements());
+        }
+        
+        return page;
     }
 
     public Article findById(Long id) {

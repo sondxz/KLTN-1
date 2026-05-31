@@ -264,31 +264,59 @@ public class UserService {
      */
     public void writeUsersToCsv(Writer writer, String q, String role) {
         try {
-            String search = (q != null && !q.trim().isEmpty()) ? q.trim() : null;
+            // Nếu không có từ khóa tìm kiếm, dùng %% để khớp tất cả
+            String search = (q != null && !q.trim().isEmpty()) ? "%" + q.trim() + "%" : "%%";
             List<User> list;
             if (role != null && !role.isEmpty()) {
                 list = userRepository.getUserByRoleAll(search, role);
             } else {
                 list = userRepository.findAllForExport(search);
             }
+            // Thêm BOM (Byte Order Mark) để Excel nhận diện UTF-8, tránh lỗi font tiếng Việt
+            writer.write('\uFEFF');
             writer.write("ID,HO_TEN,USERNAME,EMAIL,SDT,VAI_TRO,TRANG_THAI,NGAY_TAO\n");
             for (User u : list) {
-                String line = String.format(
-                        "%d,%s,%s,%s,%s,%s,%s,%s\n",
-                        u.getId(),
-                        escapeCsv(u.getFullname()),
-                        escapeCsv(u.getUsername()),
-                        escapeCsv(u.getEmail()),
-                        escapeCsv(u.getPhone()),
-                        u.getAuthorities() != null ? escapeCsv(u.getAuthorities().getName()) : "",
-                        u.getActived() != null && u.getActived() ? "Hoạt động" : "Đang khóa",
-                        u.getCreatedDate() != null ? u.getCreatedDate().toString() : ""
-                );
-                writer.write(line);
+                try {
+                    String roleName = "";
+                    if (u.getAuthorities() != null && u.getAuthorities().getName() != null) {
+                        switch (u.getAuthorities().getName()) {
+                            case "ROLE_ADMIN": roleName = "Quản trị viên"; break;
+                            case "ROLE_USER": roleName = "Người dùng"; break;
+                            case "ROLE_EXPERT": roleName = "Chuyên gia"; break;
+                            default: roleName = u.getAuthorities().getName();
+                        }
+                    }
+                    String dateStr = "";
+                    if (u.getCreatedDate() != null) {
+                        java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+                        dateStr = u.getCreatedDate().format(fmt);
+                    }
+                    String line = String.format(
+                            "%d,%s,%s,%s,%s,%s,%s,%s\n",
+                            u.getId(),
+                            escapeCsv(u.getFullname()),
+                            escapeCsv(u.getUsername()),
+                            escapeCsv(u.getEmail()),
+                            escapeCsv(u.getPhone()),
+                            escapeCsv(roleName),
+                            u.getActived() != null && u.getActived() ? "Hoạt động" : "Đang khóa",
+                            escapeCsv(dateStr)
+                    );
+                    writer.write(line);
+                } catch (Exception e) {
+                    // Ghi dòng lỗi để không bỏ sót user khác
+                    writer.write(u.getId() + ",LỖI_KHI_XUAT_DU_LIEU,,,,,,\n");
+                }
             }
             writer.flush();
-        } catch (IOException e) {
-            throw new MessageException("Lỗi khi xuất dữ liệu người dùng: " + e.getMessage());
+        } catch (Exception e) {
+            // Không throw Exception vì response đã được commit một phần
+            // Chỉ log lỗi, file excel đã có header
+            try {
+                writer.write("\nCó lỗi xảy ra khi xuất dữ liệu: " + e.getMessage() + "\n");
+                writer.flush();
+            } catch (IOException ignored) {
+            }
         }
     }
 

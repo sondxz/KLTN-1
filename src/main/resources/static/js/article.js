@@ -1,5 +1,14 @@
 var size = 8;
 var topViewedArticleIds = []; // Lưu danh sách ID của top 6 bài viết được xem nhiều nhất
+var articleSearchTimer = null; // Debounce timer cho tìm kiếm
+
+// Debounce search: chỉ gọi API sau khi người dùng ngừng gõ 400ms
+function debounceArticleSearch() {
+    if (articleSearchTimer) clearTimeout(articleSearchTimer);
+    articleSearchTimer = setTimeout(function() {
+        loadAllArticle(0);
+    }, 400);
+}
 
 // Load top viewed articles khi trang được tải
 async function loadTopViewedArticles() {

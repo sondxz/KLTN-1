@@ -6,7 +6,7 @@
 <th:block th:fragment="chatMain">
   <div class="chatbot-container">
     <div class="chatbox hidden" id="chatbox">
-      <div class="chat-header">🤖 Hỗ trợ AI </div>
+      <div class="chat-header">🤖 Hỗ trợ AI <button onclick="clearChatHistory()" style="float:right; background:none; border:none; color:#fff; cursor:pointer; font-size:14px;" title="Xóa lịch sử chat">🗑️</button></div>
 
       <div class="chat-messages" id="chat-messages">
       </div>
@@ -56,6 +56,46 @@
     let messages = [];
     let showSuggestions = false;
     let selectedFile = null;
+    const CHAT_STORAGE_KEY = 'chat_history';
+    const MAX_CHAT_MESSAGES = 50;
+
+    /** Lưu lịch sử chat vào sessionStorage (chỉ lưu text, không lưu file blob) */
+    function saveChatHistory() {
+        var toSave = messages.slice(-MAX_CHAT_MESSAGES).map(function(m) {
+            return { role: m.role, text: m.text, fileUrl: m.fileUrl || null };
+        });
+        try {
+            sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(toSave));
+        } catch(e) {
+            // sessionStorage đầy, xóa tin cũ
+            var half = Math.floor(toSave.length / 2);
+            var trimmed = toSave.slice(half);
+            sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(trimmed));
+        }
+    }
+
+    /** Khôi phục lịch sử chat từ sessionStorage khi load lại trang */
+    function loadChatHistory() {
+        try {
+            var saved = sessionStorage.getItem(CHAT_STORAGE_KEY);
+            if (saved) {
+                var parsed = JSON.parse(saved);
+                messages = parsed.map(function(m) {
+                    return { role: m.role, text: m.text, fileUrl: m.fileUrl || null };
+                });
+                renderMessages();
+            }
+        } catch(e) {
+            messages = [];
+        }
+    }
+
+    /** Xóa toàn bộ lịch sử chat */
+    function clearChatHistory() {
+        messages = [];
+        sessionStorage.removeItem(CHAT_STORAGE_KEY);
+        renderMessages();
+    }
 
     const suggestions = [
       "Cây Sâm Ngọc Linh có công dụng gì?",
@@ -150,10 +190,14 @@
         messageDiv.className = `message ${m.role}`;
 
         const contentSpan = document.createElement('span');
-        contentSpan.innerHTML = `<b>${m.role === "user" ? "Bạn" : "Bot"}:</b> ${m.text || (m.role === 'user' && m.file ? ' [Đã gửi ảnh]' : '')}`;
+        var displayText = m.text || '';
+        if (m.role === 'user' && !displayText && m.fileUrl) {
+            displayText = ' [Đã gửi ảnh]';
+        }
+        contentSpan.innerHTML = `<b>${m.role === "user" ? "Bạn" : "Bot"}:</b> ${displayText}`;
         messageDiv.appendChild(contentSpan);
 
-        // Hiển thị ảnh nếu là tin nhắn user có file
+        // Hiển thị ảnh nếu là tin nhắn user có file (blob) hoặc fileUrl (đã lưu)
         if (m.role === 'user' && m.file) {
           const reader = new FileReader();
           reader.onload = (e) => {
@@ -164,6 +208,12 @@
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
           };
           reader.readAsDataURL(m.file);
+        } else if (m.role === 'user' && m.fileUrl) {
+          const img = document.createElement('img');
+          img.src = m.fileUrl;
+          img.className = 'message-image-preview';
+          img.style.maxWidth = '200px';
+          messageDiv.appendChild(img);
         }
 
         messagesContainer.appendChild(messageDiv);
@@ -194,7 +244,8 @@
       const userMessage = {
         role: "user",
         text: message,
-        file: fileToSend // Ghi lại file để hiển thị preview
+        file: fileToSend,
+        fileUrl: null  // sẽ cập nhật sau khi upload
       };
       messages = [...messages, userMessage];
 
@@ -204,6 +255,7 @@
       showSuggestions = false;
       suggestionList.classList.add('hidden');
       renderMessages();
+      saveChatHistory();
 
       // Thêm tin nhắn chờ phản hồi
       const loadingMessage = { role: "bot", text: "..." };
@@ -222,6 +274,10 @@
           renderMessages();
 
           uploadedImageUrl = await uploadImage(fileToSend);
+
+          // Cập nhật URL ảnh vào message user để lưu history
+          messages[messages.length - 1].fileUrl = uploadedImageUrl;
+          messages[messages.length - 1].file = null; // xóa blob, dùng URL
 
           // Nối URL ảnh vào tin nhắn theo format mà backend mong đợi
           finalMessage += ` Ảnh kèm theo: ${uploadedImageUrl}`;
@@ -253,11 +309,13 @@
           messages = [...messages, { role: "bot", text: `❌ Lỗi API Chat (HTTP ${res.status})! Vui lòng kiểm tra endpoint /api/chat.` }];
         }
         renderMessages();
+        saveChatHistory();
       } catch (error) {
         // Xử lý lỗi trong quá trình upload hoặc chat
         messages.pop(); // Xóa tin nhắn chờ
         messages = [...messages, { role: "bot", text: `❌ Lỗi hệ thống: ${error.message}` }];
         renderMessages();
+        saveChatHistory();
       }
     }
 
@@ -347,6 +405,7 @@
       suggestionList.classList.add('hidden');
       imagePreviewArea.classList.add('hidden');
       renderSuggestions();
+      loadChatHistory(); // Khôi phục lịch sử chat từ sessionStorage
 
       chatToggleBtn.addEventListener('click', toggleChat);
       sendBtn.addEventListener('click', sendMessage);

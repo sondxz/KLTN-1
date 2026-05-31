@@ -231,8 +231,7 @@ public interface PlantRepository extends JpaRepository<Plant, Long>, JpaSpecific
     );
 
     /**
-     * Tìm kiếm chỉ theo tên cây (cho public access)
-     * Dùng LIKE search vì không có FULLTEXT index trên cột name riêng lẻ
+     * Tìm kiếm theo tên cây hoặc tên khoa học (cho public access)
      */
     @Query(value = """
             SELECT p.*, 
@@ -240,13 +239,18 @@ public interface PlantRepository extends JpaRepository<Plant, Long>, JpaSpecific
                     WHEN :nameSearch IS NOT NULL AND :nameSearch != '' AND 
                          LOWER(p.name) LIKE LOWER(CONCAT(:nameSearch, '%')) THEN 100
                     WHEN :nameSearch IS NOT NULL AND :nameSearch != '' AND 
+                         LOWER(p.scientific_name) LIKE LOWER(CONCAT(:nameSearch, '%')) THEN 90
+                    WHEN :nameSearch IS NOT NULL AND :nameSearch != '' AND 
                          LOWER(p.name) LIKE LOWER(CONCAT('%', :nameSearch, '%')) THEN 50
+                    WHEN :nameSearch IS NOT NULL AND :nameSearch != '' AND 
+                         LOWER(p.scientific_name) LIKE LOWER(CONCAT('%', :nameSearch, '%')) THEN 40
                     ELSE 0
                 END AS score
             FROM plants p
             WHERE 
                 (:nameSearch IS NULL OR :nameSearch = '' OR
-                LOWER(p.name) LIKE LOWER(CONCAT('%', :nameSearch, '%')))
+                LOWER(p.name) LIKE LOWER(CONCAT('%', :nameSearch, '%')) OR
+                LOWER(p.scientific_name) LIKE LOWER(CONCAT('%', :nameSearch, '%')))
             AND (:familiesId IS NULL OR p.families_id = :familiesId)
             AND p.plant_status = 'DA_XUAT_BAN'
             ORDER BY score DESC, p.created_at DESC
@@ -255,7 +259,8 @@ public interface PlantRepository extends JpaRepository<Plant, Long>, JpaSpecific
             SELECT COUNT(*) FROM plants p
             WHERE 
                 (:nameSearch IS NULL OR :nameSearch = '' OR
-                LOWER(p.name) LIKE LOWER(CONCAT('%', :nameSearch, '%')))
+                LOWER(p.name) LIKE LOWER(CONCAT('%', :nameSearch, '%')) OR
+                LOWER(p.scientific_name) LIKE LOWER(CONCAT('%', :nameSearch, '%')))
             AND (:familiesId IS NULL OR p.families_id = :familiesId)
             AND p.plant_status = 'DA_XUAT_BAN'
             """,

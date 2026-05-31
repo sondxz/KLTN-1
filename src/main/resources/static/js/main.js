@@ -333,5 +333,6 @@ function initGlobalWebSocket() {
 function logout(){
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    sessionStorage.removeItem("chat_history"); // Xóa lịch sử chat
     window.location.href = '/logout'
 }
