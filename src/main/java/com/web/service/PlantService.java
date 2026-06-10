@@ -989,7 +989,8 @@ public class PlantService {
      */
     public void writePlantsToCsv(Writer writer, String q, Long familiesId, PlantStatus plantStatus) {
         try {
-            String search = (q != null && !q.trim().isEmpty()) ? q.trim() : null;
+            // Dùng chuỗi rỗng thay vì null vì JPQL CONCAT('%', null, '%') = null
+            String search = (q != null && !q.trim().isEmpty()) ? q.trim() : "";
             List<Plant> plants;
             // Sử dụng FULLTEXT search nếu có index
             try {
@@ -1005,26 +1006,42 @@ public class PlantService {
                 plants = plantRepository.searchForExport(search, familiesId, plantStatus);
             }
 
+            // BOM để Excel nhận diện UTF-8
+            writer.write('\uFEFF');
             // Header
             writer.write("ID,TEN_CAY,TEN_KHOA_HOC,HO_THUC_VAT,BO_PHAN_DUNG,TRANG_THAI,NGAY_TAO,NGAY_CAP_NHAT\n");
 
+            java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
             for (Plant p : plants) {
-                String line = String.format(
-                        "%d,%s,%s,%s,%s,%s,%s,%s\n",
-                        p.getId(),
-                        escapeCsv(p.getName()),
-                        escapeCsv(p.getScientificName()),
-                        p.getFamilies() != null ? escapeCsv(p.getFamilies().getName()) : "",
-                        escapeCsv(p.getPartsUsed()),
-                        p.getPlantStatus() != null ? p.getPlantStatus().name() : "",
-                        p.getCreatedAt() != null ? p.getCreatedAt().toString() : "",
-                        p.getUpdatedAt() != null ? p.getUpdatedAt().toString() : ""
-                );
-                writer.write(line);
+                try {
+                    String statusStr = "";
+                    if (p.getPlantStatus() != null) {
+                        switch (p.getPlantStatus()) {
+                            case DA_XUAT_BAN: statusStr = "Đã xuất bản"; break;
+                            case CHO_DUYET: statusStr = "Chờ duyệt"; break;
+                            case TU_CHOI: statusStr = "Từ chối"; break;
+                            default: statusStr = p.getPlantStatus().name();
+                        }
+                    }
+                    String line = String.format(
+                            "%d,%s,%s,%s,%s,%s,%s,%s\n",
+                            p.getId(),
+                            escapeCsv(p.getName()),
+                            escapeCsv(p.getScientificName()),
+                            p.getFamilies() != null ? escapeCsv(p.getFamilies().getName()) : "",
+                            escapeCsv(p.getPartsUsed()),
+                            escapeCsv(statusStr),
+                            p.getCreatedAt() != null ? p.getCreatedAt().format(fmt) : "",
+                            p.getUpdatedAt() != null ? p.getUpdatedAt().format(fmt) : ""
+                    );
+                    writer.write(line);
+                } catch (Exception e) {
+                    writer.write(p.getId() + ",LỖI_KHI_XUAT,,,,,,\n");
+                }
             }
             writer.flush();
-        } catch (IOException e) {
-            throw new MessageException("Lỗi khi xuất dữ liệu cây dược liệu: " + e.getMessage());
+        } catch (Exception e) {
+            try { writer.write("\nCó lỗi khi xuất: " + e.getMessage() + "\n"); writer.flush(); } catch (IOException ignored) {}
         }
     }
 

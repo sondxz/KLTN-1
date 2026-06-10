@@ -4,22 +4,31 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.google.gson.Gson;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * EntityExtractorService — Trích xuất tên thực thể (cây, bệnh, bài thuốc)
  * từ câu hỏi người dùng để phục vụ Entity Verification trong RAG Pipeline.
  * 
- * Chiến lược 2 tầng:
+ * Chiến lược 3 tầng:
  * - TẦNG 1 (PRIMARY): AI extract qua Cloudflare Worker — prompt siêu ngắn, nhanh, chính xác
- * - TẦNG 2 (FALLBACK): Regex — chỉ bắt pattern rõ ràng, dùng khi AI lỗi
+ * - TẦNG 2 (FALLBACK): Gemini — dùng khi Cloudflare lỗi (model deprecated, timeout...)
+ * - TẦNG 3 (LAST RESORT): Regex — chỉ bắt pattern rõ ràng, dùng khi cả 2 AI đều lỗi
  * 
  * Lý do AI làm primary: Tiếng Việt biến thể quá nhiều, Regex không thể phủ hết
  *   "Sâm ngọc linh chữa được gì?" → không có chữ "cây"
@@ -31,11 +40,15 @@ public class EntityExtractorService {
 
     private static final Logger log = LoggerFactory.getLogger(EntityExtractorService.class);
 
+    private static final String GEMINI_URL =
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+
     /** Prompt siêu ngắn (~30 tokens input, ~20 tokens output) — rẻ, nhanh */
     private static final String EXTRACT_PROMPT = """
-        Trích xuất tên cây dược liệu, bệnh, bài thuốc từ câu hỏi.
+        Trích xuất tên cây dược liệu, bệnh, bài thuốc từ câu hỏi sau.
         Chỉ trả về JSON: {"plants":[], "diseases":[], "remedies":[]}
-        Nếu không có → JSON rỗng.
+        Nếu không có thì trả về mảng rỗng.
+        Lưu ý: không thêm tiền tố "cây" vào tên cây.
         Câu hỏi: %s
         """;
 
@@ -52,11 +65,24 @@ public class EntityExtractorService {
             "(?i)bài\\s+thuốc\\s+(?:chữa\\s+)?([a-zà-ỹ][a-zà-ỹ\\s]+?)(?:\\s+từ|\\s+bằng|\\s+với|\\s+ở|$)",
             Pattern.UNICODE_CHARACTER_CLASS);
 
+    @Value("${gemini.api.key}")
+    private String geminiApiKey;
+
+    @Value("${gemini.api.timeout-seconds:60}")
+    private int geminiTimeoutSeconds;
+
     @Autowired
     private CloudflareAIService cloudflareAIService;
 
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build();
+
+    private final Gson gson = new Gson();
+
     /**
      * Trích xuất thực thể từ câu hỏi.
+     * Chiến lược 3 tầng: Cloudflare → Gemini → Regex
      * @return Map với keys: "plants", "diseases", "remedies"
      */
     public Map<String, List<String>> extract(String question) {
@@ -64,32 +90,45 @@ public class EntityExtractorService {
             return emptyResult();
         }
 
-        // ===== TẦNG 1: AI EXTRACT (PRIMARY) =====
+        // ===== TẦNG 1: CLOUDFLARE AI (PRIMARY) =====
         try {
-            Map<String, List<String>> aiResult = extractWithAI(question);
-            if (aiResult != null && hasAnyEntity(aiResult)) {
-                log.debug("AI extract thành công: {}", aiResult);
-                return aiResult;
+            Map<String, List<String>> cfResult = extractWithCloudflare(question);
+            if (cfResult != null && hasAnyEntity(cfResult)) {
+                log.debug("Cloudflare extract thành công: {}", cfResult);
+                return cfResult;
             }
+            log.info("Cloudflare extract không có kết quả, fallback sang Gemini...");
         } catch (Exception e) {
-            log.warn("AI extract failed, fallback sang regex: {}", e.getMessage());
+            log.warn("Cloudflare extract lỗi, fallback sang Gemini: {}", e.getMessage());
         }
 
-        // ===== TẦNG 2: REGEX FALLBACK =====
+        // ===== TẦNG 2: GEMINI FALLBACK =====
+        try {
+            Map<String, List<String>> geminiResult = extractWithGemini(question);
+            if (geminiResult != null && hasAnyEntity(geminiResult)) {
+                log.debug("Gemini extract thành công: {}", geminiResult);
+                return geminiResult;
+            }
+            log.info("Gemini extract không có kết quả, fallback sang regex...");
+        } catch (Exception e) {
+            log.warn("Gemini extract lỗi, fallback sang regex: {}", e.getMessage());
+        }
+
+        // ===== TẦNG 3: REGEX (LAST RESORT) =====
         Map<String, List<String>> regexResult = extractWithRegex(question);
-        log.debug("Regex extract (fallback): {}", regexResult);
+        log.debug("Regex extract (last resort): {}", regexResult);
         return regexResult;
     }
 
     /**
      * TẦNG 1: Gọi Cloudflare Worker /chat với prompt extract siêu ngắn.
      */
-    private Map<String, List<String>> extractWithAI(String question) {
+    private Map<String, List<String>> extractWithCloudflare(String question) {
         if (!cloudflareAIService.isAvailable()) {
             return null;
         }
 
-        String prompt = String.format(EXTRACT_PROMPT, question);
+        String prompt = String.format(EXTRACT_PROMPT, question.replace("%", "%%"));
         String response = cloudflareAIService.chat(prompt);
 
         if (response == null || response.trim().isEmpty()) {
@@ -97,6 +136,93 @@ public class EntityExtractorService {
         }
 
         return parseAIResponse(response, question);
+    }
+
+    /**
+     * TẦNG 2: Gọi Gemini 2.5 Flash để extract entity khi Cloudflare lỗi.
+     * Dùng chung prompt template và parse logic với Cloudflare.
+     */
+    private Map<String, List<String>> extractWithGemini(String question) {
+        try {
+            String prompt = String.format(EXTRACT_PROMPT, question.replace("%", "%%"));
+
+            JsonObject root = new JsonObject();
+            JsonArray contents = new JsonArray();
+            JsonObject userMsg = new JsonObject();
+            userMsg.addProperty("role", "user");
+
+            JsonArray parts = new JsonArray();
+            JsonObject partText = new JsonObject();
+            partText.addProperty("text", prompt);
+            parts.add(partText);
+
+            userMsg.add("parts", parts);
+            contents.add(userMsg);
+
+            JsonObject generationConfig = new JsonObject();
+            generationConfig.addProperty("temperature", 0.0);
+            generationConfig.addProperty("maxOutputTokens", 256);
+
+            root.add("contents", contents);
+            root.add("generationConfig", generationConfig);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(GEMINI_URL + "?key=" + geminiApiKey))
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofSeconds(geminiTimeoutSeconds))
+                    .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(root)))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() != 200) {
+                log.warn("Gemini extract HTTP {}: {}", response.statusCode(),
+                        response.body().substring(0, Math.min(200, response.body().length())));
+                return null;
+            }
+
+            JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+            String text = extractTextFromGeminiResponse(json);
+
+            if (text == null || text.trim().isEmpty()) {
+                return null;
+            }
+
+            return parseAIResponse(text, question);
+
+        } catch (Exception e) {
+            log.warn("Gemini extract exception: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Trích xuất text từ Gemini API response.
+     */
+    private String extractTextFromGeminiResponse(JsonObject json) {
+        try {
+            if (json.has("candidates")) {
+                JsonArray candidates = json.getAsJsonArray("candidates");
+                if (candidates.size() > 0) {
+                    JsonObject candidate = candidates.get(0).getAsJsonObject();
+                    if (candidate.has("content")) {
+                        JsonObject content = candidate.getAsJsonObject("content");
+                        if (content.has("parts")) {
+                            JsonArray responseParts = content.getAsJsonArray("parts");
+                            if (responseParts.size() > 0) {
+                                JsonObject part = responseParts.get(0).getAsJsonObject();
+                                if (part.has("text")) {
+                                    return part.get("text").getAsString();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Parse Gemini response error: {}", e.getMessage());
+        }
+        return null;
     }
 
     /**
@@ -128,6 +254,12 @@ public class EntityExtractorService {
             List<String> rawPlants = parseStringArray(root, "plants");
             List<String> rawDiseases = parseStringArray(root, "diseases");
             List<String> rawRemedies = parseStringArray(root, "remedies");
+
+            // Chuẩn hóa: bỏ tiền tố "cây " nếu AI thêm vào
+            rawPlants = rawPlants.stream()
+                    .map(p -> p.replaceFirst("(?i)^cây\\s+", "").trim())
+                    .filter(p -> !p.isEmpty())
+                    .collect(Collectors.toList());
 
             // Filter: chỉ giữ entity có từ xuất hiện trong câu hỏi gốc
             Map<String, List<String>> result = new LinkedHashMap<>();

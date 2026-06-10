@@ -228,25 +228,42 @@ public class ResearchService {
      */
     public void writeResearchToCsv(Writer writer, String q, ResearchStatus status) {
         try {
-            String search = (q != null && !q.trim().isEmpty()) ? q.trim() : null;
+            // Dùng chuỗi rỗng (không phải null) vì native query có guard :search = ''
+            String search = (q != null && !q.trim().isEmpty()) ? q.trim() : "";
             java.util.List<Research> list = researchRepository.findAllForExport(search, status != null ? status.name() : null);
+            // BOM để Excel nhận diện UTF-8
+            writer.write('\uFEFF');
             writer.write("ID,TIEU_DE,TAC_GIA,NAM_XUAT_BAN,TRANG_THAI,NGAY_TAO,NGAY_CAP_NHAT\n");
+            java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
             for (Research r : list) {
-                String line = String.format(
-                        "%d,%s,%s,%s,%s,%s,%s\n",
-                        r.getId(),
-                        escapeCsv(r.getTitle()),
-                        escapeCsv(r.getAuthors()),
-                        r.getPublishedYear() != null ? r.getPublishedYear().toString() : "",
-                        r.getResearchStatus() != null ? r.getResearchStatus().name() : "",
-                        r.getCreatedAt() != null ? r.getCreatedAt().toString() : "",
-                        r.getUpdatedAt() != null ? r.getUpdatedAt().toString() : ""
-                );
-                writer.write(line);
+                try {
+                    String statusStr = "";
+                    if (r.getResearchStatus() != null) {
+                        switch (r.getResearchStatus()) {
+                            case DA_XUAT_BAN: statusStr = "Đã xuất bản"; break;
+                            case CHO_DUYET: statusStr = "Chờ duyệt"; break;
+                            case TU_CHOI: statusStr = "Từ chối"; break;
+                            default: statusStr = r.getResearchStatus().name();
+                        }
+                    }
+                    String line = String.format(
+                            "%d,%s,%s,%s,%s,%s,%s\n",
+                            r.getId(),
+                            escapeCsv(r.getTitle()),
+                            escapeCsv(r.getAuthors()),
+                            r.getPublishedYear() != null ? r.getPublishedYear().toString() : "",
+                            escapeCsv(statusStr),
+                            r.getCreatedAt() != null ? r.getCreatedAt().format(fmt) : "",
+                            r.getUpdatedAt() != null ? r.getUpdatedAt().format(fmt) : ""
+                    );
+                    writer.write(line);
+                } catch (Exception e) {
+                    writer.write(r.getId() + ",LỖI_KHI_XUAT,,,,,\n");
+                }
             }
             writer.flush();
-        } catch (IOException e) {
-            throw new MessageException("Lỗi khi xuất dữ liệu nghiên cứu: " + e.getMessage());
+        } catch (Exception e) {
+            try { writer.write("\nCó lỗi khi xuất: " + e.getMessage() + "\n"); writer.flush(); } catch (IOException ignored) {}
         }
     }
 

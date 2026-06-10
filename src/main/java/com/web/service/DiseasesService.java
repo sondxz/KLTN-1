@@ -76,22 +76,28 @@ public class DiseasesService {
      */
     public void writeDiseasesToCsv(Writer writer, String q) {
         try {
-            String search = (q != null && !q.trim().isEmpty()) ? q.trim() : null;
+            String search = (q != null && !q.trim().isEmpty()) ? "%" + q.trim() + "%" : "%%";
             List<Diseases> list = diseasesRepository.findAllForExport(search);
+            // BOM để Excel nhận diện UTF-8
+            writer.write('\uFEFF');
             writer.write("ID,TEN_BENH,MO_TA,SLUG\n");
             for (Diseases d : list) {
-                String line = String.format(
-                        "%d,%s,%s,%s\n",
-                        d.getId(),
-                        escapeCsv(d.getName()),
-                        escapeCsv(d.getDescription()),
-                        escapeCsv(d.getSlug())
-                );
-                writer.write(line);
+                try {
+                    String line = String.format(
+                            "%d,%s,%s,%s\n",
+                            d.getId(),
+                            escapeCsv(d.getName()),
+                            escapeCsv(d.getDescription()),
+                            escapeCsv(d.getSlug())
+                    );
+                    writer.write(line);
+                } catch (Exception e) {
+                    writer.write(d.getId() + ",LỖI_KHI_XUAT,,\n");
+                }
             }
             writer.flush();
-        } catch (IOException e) {
-            throw new MessageException("Lỗi khi xuất dữ liệu bệnh: " + e.getMessage());
+        } catch (Exception e) {
+            try { writer.write("\nCó lỗi khi xuất: " + e.getMessage() + "\n"); writer.flush(); } catch (IOException ignored) {}
         }
     }
 

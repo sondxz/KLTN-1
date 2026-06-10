@@ -228,26 +228,43 @@ public class ArticleService {
      */
     public void writeArticlesToCsv(Writer writer, String q, ArticleStatus status) {
         try {
-            String search = (q != null && !q.trim().isEmpty()) ? q.trim() : null;
+            // Dùng chuỗi rỗng (không phải null) vì native query có guard :search = ''
+            String search = (q != null && !q.trim().isEmpty()) ? q.trim() : "";
             List<Article> list = articleRepository.findAllForExport(search, status != null ? status.name() : null);
+            // BOM để Excel nhận diện UTF-8
+            writer.write('\uFEFF');
             writer.write("ID,TIEU_DE,CONG_DUNG,TOM_TAT,TAC_GIA,TRANG_THAI,NGAY_TAO,NGAY_CAP_NHAT\n");
+            java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
             for (Article a : list) {
-                String line = String.format(
-                        "%d,%s,%s,%s,%s,%s,%s,%s\n",
-                        a.getId(),
-                        escapeCsv(a.getTitle()),
-                        a.getDiseases() != null ? escapeCsv(a.getDiseases().getName()) : "",
-                        escapeCsv(a.getExcerpt()),
-                        a.getUser() != null ? escapeCsv(a.getUser().getFullname()) : "",
-                        a.getArticleStatus() != null ? a.getArticleStatus().name() : "",
-                        a.getCreatedAt() != null ? a.getCreatedAt().toString() : "",
-                        a.getUpdatedAt() != null ? a.getUpdatedAt().toString() : ""
-                );
-                writer.write(line);
+                try {
+                    String statusStr = "";
+                    if (a.getArticleStatus() != null) {
+                        switch (a.getArticleStatus()) {
+                            case DA_XUAT_BAN: statusStr = "Đã xuất bản"; break;
+                            case CHO_DUYET: statusStr = "Chờ duyệt"; break;
+                            case TU_CHOI: statusStr = "Từ chối"; break;
+                            default: statusStr = a.getArticleStatus().name();
+                        }
+                    }
+                    String line = String.format(
+                            "%d,%s,%s,%s,%s,%s,%s,%s\n",
+                            a.getId(),
+                            escapeCsv(a.getTitle()),
+                            a.getDiseases() != null ? escapeCsv(a.getDiseases().getName()) : "",
+                            escapeCsv(a.getExcerpt()),
+                            a.getUser() != null ? escapeCsv(a.getUser().getFullname()) : "",
+                            escapeCsv(statusStr),
+                            a.getCreatedAt() != null ? a.getCreatedAt().format(fmt) : "",
+                            a.getUpdatedAt() != null ? a.getUpdatedAt().format(fmt) : ""
+                    );
+                    writer.write(line);
+                } catch (Exception e) {
+                    writer.write(a.getId() + ",LỖI_KHI_XUAT,,,,,,\n");
+                }
             }
             writer.flush();
-        } catch (IOException e) {
-            throw new MessageException("Lỗi khi xuất dữ liệu bài viết: " + e.getMessage());
+        } catch (Exception e) {
+            try { writer.write("\nCó lỗi khi xuất: " + e.getMessage() + "\n"); writer.flush(); } catch (IOException ignored) {}
         }
     }
 

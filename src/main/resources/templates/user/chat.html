@@ -189,31 +189,52 @@
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${m.role}`;
 
-        const contentSpan = document.createElement('span');
         var displayText = m.text || '';
         if (m.role === 'user' && !displayText && m.fileUrl) {
             displayText = ' [Đã gửi ảnh]';
         }
-        contentSpan.innerHTML = `<b>${m.role === "user" ? "Bạn" : "Bot"}:</b> ${displayText}`;
-        messageDiv.appendChild(contentSpan);
 
-        // Hiển thị ảnh nếu là tin nhắn user có file (blob) hoặc fileUrl (đã lưu)
-        if (m.role === 'user' && m.file) {
-          const reader = new FileReader();
-          reader.onload = (e) => {
+        if (m.role === 'bot') {
+          const labelDiv = document.createElement('div');
+          labelDiv.className = 'message-label';
+          labelDiv.innerHTML = '<span class="bot-avatar">🤖</span> <b>Trợ lý AI</b>';
+          messageDiv.appendChild(labelDiv);
+
+          const bodyDiv = document.createElement('div');
+          bodyDiv.className = 'message-body';
+          // Escape HTML, then auto-linkify URLs
+          var safe = displayText
+              .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          // Linkify full URLs
+          safe = safe.replace(/(https?:\/\/[^\s<>"]+)/g, '<a href="$1" target="_blank">$1</a>');
+          // Linkify internal paths after "Nguồn: "
+          safe = safe.replace(/Nguồn:\s*(\/[^\s\n]+)/g, 'Nguồn: <a href="$1" target="_blank">$1</a>');
+          bodyDiv.innerHTML = safe;
+          messageDiv.appendChild(bodyDiv);
+        } else {
+          // User message: giữ nguyên logic cũ
+          const contentSpan = document.createElement('span');
+          contentSpan.innerHTML = `<b>Bạn:</b> ${displayText}`;
+          messageDiv.appendChild(contentSpan);
+
+          // Hiển thị ảnh nếu là tin nhắn user có file (blob) hoặc fileUrl (đã lưu)
+          if (m.file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const img = document.createElement('img');
+              img.src = e.target.result;
+              img.className = 'message-image-preview';
+              messageDiv.appendChild(img);
+              messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            };
+            reader.readAsDataURL(m.file);
+          } else if (m.fileUrl) {
             const img = document.createElement('img');
-            img.src = e.target.result;
+            img.src = m.fileUrl;
             img.className = 'message-image-preview';
+            img.style.maxWidth = '200px';
             messageDiv.appendChild(img);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-          };
-          reader.readAsDataURL(m.file);
-        } else if (m.role === 'user' && m.fileUrl) {
-          const img = document.createElement('img');
-          img.src = m.fileUrl;
-          img.className = 'message-image-preview';
-          img.style.maxWidth = '200px';
-          messageDiv.appendChild(img);
+          }
         }
 
         messagesContainer.appendChild(messageDiv);

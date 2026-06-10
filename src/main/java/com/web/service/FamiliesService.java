@@ -100,22 +100,28 @@ public class FamiliesService {
      */
     public void writeFamiliesToCsv(Writer writer, String q) {
         try {
-            String search = (q != null && !q.trim().isEmpty()) ? q.trim() : null;
+            String search = (q != null && !q.trim().isEmpty()) ? "%" + q.trim() + "%" : "%%";
             List<Families> list = familiesRepository.findAllForExport(search);
+            // BOM để Excel nhận diện UTF-8
+            writer.write('\uFEFF');
             writer.write("ID,HO_THUC_VAT,MO_TA,SLUG\n");
             for (Families f : list) {
-                String line = String.format(
-                        "%d,%s,%s,%s\n",
-                        f.getId(),
-                        escapeCsv(f.getName()),
-                        escapeCsv(f.getDescription()),
-                        escapeCsv(f.getSlug())
-                );
-                writer.write(line);
+                try {
+                    String line = String.format(
+                            "%d,%s,%s,%s\n",
+                            f.getId(),
+                            escapeCsv(f.getName()),
+                            escapeCsv(f.getDescription()),
+                            escapeCsv(f.getSlug())
+                    );
+                    writer.write(line);
+                } catch (Exception e) {
+                    writer.write(f.getId() + ",LỖI_KHI_XUAT,,\n");
+                }
             }
             writer.flush();
-        } catch (IOException e) {
-            throw new MessageException("Lỗi khi xuất dữ liệu họ thực vật: " + e.getMessage());
+        } catch (Exception e) {
+            try { writer.write("\nCó lỗi khi xuất: " + e.getMessage() + "\n"); writer.flush(); } catch (IOException ignored) {}
         }
     }
 

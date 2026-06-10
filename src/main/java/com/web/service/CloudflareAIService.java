@@ -80,8 +80,8 @@ public class CloudflareAIService {
         }
         requestBody.add("text", textsArray);
 
-        return callWithRetry(url, requestBody.toString(), response -> {
-            JsonObject json = JsonParser.parseString(response).getAsJsonObject();
+        return callWithRetry(url, gson.toJson(requestBody), response -> {
+            JsonObject json = gson.fromJson(response, JsonObject.class);
 
             // Parse response: {"embeddings": [[...], [...]]}
             if (json.has("embeddings")) {
@@ -160,12 +160,18 @@ public class CloudflareAIService {
         JsonObject requestBody = new JsonObject();
         requestBody.addProperty("prompt", prompt);
 
-        return callWithRetry(url, requestBody.toString(), response -> {
-            JsonObject json = JsonParser.parseString(response).getAsJsonObject();
+        return callWithRetry(url, gson.toJson(requestBody), response -> {
+            JsonObject json = gson.fromJson(response, JsonObject.class);
 
             // Thử các key phổ biến
             if (json.has("response")) {
-                return json.get("response").getAsString();
+                JsonElement respEl = json.get("response");
+                // Model @cf/meta/llama-3.2-3b-instruct trả về response là JsonObject
+                // Model cũ trả về response là String
+                if (respEl.isJsonObject()) {
+                    return gson.toJson(respEl.getAsJsonObject());
+                }
+                return respEl.getAsString();
             }
             if (json.has("result")) {
                 JsonElement resultEl = json.get("result");
@@ -185,7 +191,11 @@ public class CloudflareAIService {
             }
 
             log.warn("Cloudflare chat response structure không đúng: {}",
-                    response.substring(0, Math.min(200, response.length())));
+                    response.substring(0, Math.min(500, response.length())));
+            // Nếu response chứa "error" → log chi tiết để debug
+            if (json.has("error")) {
+                log.error("Cloudflare chat trả về lỗi: {}", json.get("error").getAsString());
+            }
             return null;
         });
     }
@@ -207,6 +217,9 @@ public class CloudflareAIService {
      */
     private <T> T callWithRetry(String url, String body, ResponseParser<T> parser) {
         Exception lastException = null;
+
+        log.debug("Cloudflare API call: url={}, body={}", url, 
+                body.substring(0, Math.min(200, body.length())));
 
         for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
@@ -251,7 +264,9 @@ public class CloudflareAIService {
                 log.warn("Cloudflare API timeout (attempt {}/{})", attempt, MAX_RETRIES);
                 lastException = e;
             } catch (Exception e) {
-                log.warn("Cloudflare API lỗi (attempt {}/{}): {}", attempt, MAX_RETRIES, e.getMessage());
+                log.warn("Cloudflare API lỗi (attempt {}/{}): {} [type={}]", 
+                        attempt, MAX_RETRIES, e.getMessage(), e.getClass().getSimpleName());
+                log.warn("Cloudflare API stack trace:", e);
                 lastException = e;
             }
 
