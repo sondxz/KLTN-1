@@ -38,11 +38,7 @@ function connectUserMessagesWebSocket() {
     }
 
     // Tự động detect protocol: wss:// cho HTTPS, ws:// cho HTTP
-    var wsProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    var wsUrl = wsProtocol + '//' + window.location.host + '/ws';
-    
-    console.log('Connecting to WebSocket:', wsUrl);
-    var socket = new SockJS(wsUrl);
+    var socket = new SockJS('/ws');
     userMessagesStompClient = Stomp.over(socket);
     
     // Disable debug logging

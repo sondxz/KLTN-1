@@ -89,7 +89,7 @@ public class ChatApi {
     public ResponseEntity<Map<String, Object>> indexRag() {
         try {
             // Kiểm tra nếu đang indexing
-            if (embeddingService.isIndexing()) {
+            if (!embeddingService.beginFullIndexing()) {
                 Map<String, Object> busyResp = new HashMap<>();
                 busyResp.put("status", "already_running");
                 busyResp.put("progress", embeddingService.getIndexingProgress());
@@ -116,6 +116,8 @@ public class ChatApi {
             return ResponseEntity.accepted().body(result);
 
         } catch (Exception e) {
+            embeddingService.failIndexingDispatch(
+                    e.getMessage() != null ? e.getMessage() : "Không thể đưa tác vụ vào hàng đợi");
             logger.error("RAG indexing dispatch failed", e);
             Map<String, Object> errorResp = new HashMap<>();
             errorResp.put("status", "error");

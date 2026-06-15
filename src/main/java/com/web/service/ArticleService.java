@@ -1,6 +1,7 @@
 package com.web.service;
 
 import com.web.entity.Article;
+import com.web.entity.ChunkEmbedding;
 import com.web.enums.ArticleStatus;
 import com.web.exception.MessageException;
 import com.web.repository.ArticleRepository;
@@ -33,6 +34,9 @@ public class ArticleService {
 
     @Autowired
     private UserUtils userUtils;
+
+    @Autowired
+    private RagIndexCoordinator ragIndexCoordinator;
 
     public Page<Article> getAll(String search, ArticleStatus status, Pageable pageable) {
         try {
@@ -125,7 +129,9 @@ public class ArticleService {
                 article.setArticleStatus(ArticleStatus.CHO_DUYET);
             }
             
-            return articleRepository.save(article);
+            Article saved = articleRepository.save(article);
+            ragIndexCoordinator.syncAfterCommit(ChunkEmbedding.ContentType.article, saved.getId());
+            return saved;
         }
         else {
             Article existing = findById(article.getId());
@@ -160,15 +166,19 @@ public class ArticleService {
                 existing.setArticleStatus(article.getArticleStatus());
             }
             existing.setDiseases(article.getDiseases());
-            return articleRepository.save(existing);
+            Article saved = articleRepository.save(existing);
+            ragIndexCoordinator.syncAfterCommit(ChunkEmbedding.ContentType.article, saved.getId());
+            return saved;
         }
     }
 
+    @Transactional
     public void delete(Long id) {
         if (!articleRepository.existsById(id)) {
             throw new MessageException("Bài viết không tồn tại");
         }
         articleRepository.deleteById(id);
+        ragIndexCoordinator.syncAfterCommit(ChunkEmbedding.ContentType.article, id);
     }
 
     public Article findBySlug(String slug) {
@@ -280,6 +290,7 @@ public class ArticleService {
     /**
      * Duyệt hoặc từ chối bài viết (chỉ EXPERT và ADMIN)
      */
+    @Transactional
     public Article approveOrReject(Long id, ArticleStatus status) {
         Article article = findById(id);
         if(status != ArticleStatus.DA_XUAT_BAN && status != ArticleStatus.TU_CHOI){
@@ -289,7 +300,9 @@ public class ArticleService {
         if(status == ArticleStatus.DA_XUAT_BAN && article.getPublishedAt() == null){
             article.setPublishedAt(LocalDateTime.now());
         }
-        return articleRepository.save(article);
+        Article saved = articleRepository.save(article);
+        ragIndexCoordinator.syncAfterCommit(ChunkEmbedding.ContentType.article, saved.getId());
+        return saved;
     }
 
     /**

@@ -15,9 +15,11 @@ import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.text.Normalizer;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Service xử lý chat với người dùng.
@@ -86,7 +88,7 @@ public class ChatService {
                 // Tách phần text ra khỏi URL ảnh
                 String cleanMessage = userMessage.split("Ảnh kèm theo:")[0].trim();
                 String his = (String) session.getAttribute("history-chat");
-                
+
                 // Có hình ảnh → BẮT BUỘC dùng Gemini (Cloudflare không hỗ trợ vision)
                 log.info("Phát hiện ảnh kèm theo, sử dụng Gemini Vision");
                 return answerWithImageAndDatabase(cleanMessage, imageUrl, his);
@@ -179,7 +181,7 @@ public class ChatService {
         }
     }
 
-    private Map<String, String> identifyPlantNameFromImage(String imageUrl) {
+    private List<Map<String, String>> identifyPlantNameFromImage(String imageUrl) {
         try {
             JsonObject root = new JsonObject();
             JsonArray contents = new JsonArray();
@@ -191,25 +193,35 @@ public class ChatService {
 
             JsonObject textPart = new JsonObject();
             textPart.addProperty("text",
-                    "Bạn là chuyên gia thực vật. Hãy nhìn ảnh và xác định chính xác tên cây.\n" +
+                    "Bạn là chuyên gia thực vật. Hãy nhìn ảnh và xác định Top 3 cây có thể.\n" +
                     "QUAN TRỌNG:\n" +
-                    "- common_name PHẢI là tên tiếng Việt phổ biến (vd: 'Atiso', 'Nha đam', 'Sâm Ngọc Linh'). KHÔNG dùng tiếng Anh.\n" +
+                    "- common_name PHẢI là tên tiếng Việt phổ biến (vd: 'Atiso', 'Nha đam', 'Xoài'). KHÔNG dùng tiếng Anh.\n" +
                     "- scientific_name là tên khoa học Latin (vd: 'Cynara scolymus').\n" +
-                    "- Nếu bạn CHẮC CHẮN (>=90%) → trả về JSON: {\"common_name\":\"...\",\"scientific_name\":\"...\",\"confidence\":\"high\"}\n" +
-                    "- Nếu bạn KHÔNG CHẮC (<90%) → trả về JSON: {\"common_name\":\"...\",\"scientific_name\":\"...\",\"confidence\":\"low\"}\n" +
-                    "- Nếu ảnh không phải cây cối → trả về JSON: {\"common_name\":\"\",\"scientific_name\":\"\",\"confidence\":\"none\"}\n" +
-                    "- Chỉ trả về JSON, không thêm text nào khác.");
+                    "- confidence: 'high' (>=90%), 'medium' (60-89%), 'low' (<60%)\n" +
+                    "- diagnostic_features_visible: true CHỈ khi ảnh nhìn rõ ít nhất một đặc điểm có thể phân biệt ở cấp loài như lá, hoa, quả hoặc vỏ đặc trưng.\n" +
+                    "- Ảnh chụp toàn cây từ xa, chỉ thấy tán/cành/thân chung chung thì diagnostic_features_visible=false và confidence=low.\n" +
+                    "- Không suy đoán loài từ phong cảnh, địa điểm hoặc dáng cây chung chung. Nếu thiếu dấu hiệu phân biệt thì phải hạ thấp độ tin cậy.\n" +
+                    "- Sắp xếp theo confidence giảm dần.\n" +
+                    "- Nếu ảnh không phải cây cối → trả về: []\n" +
+                    "- Chỉ trả về JSON array, không thêm text nào khác.\n" +
+                    "Ví dụ: [{\"common_name\":\"Xoài\",\"scientific_name\":\"Mangifera indica\",\"confidence\":\"high\",\"diagnostic_features_visible\":true},{\"common_name\":\"Bơ\",\"scientific_name\":\"Persea americana\",\"confidence\":\"low\",\"diagnostic_features_visible\":false}]");
             parts.add(textPart);
 
             JsonObject imagePart = buildImagePart(imageUrl);
-            if (imagePart != null) {
-                parts.add(imagePart);
+            if (imagePart == null) {
+                log.warn("Image data could not be loaded; aborting vision request");
+                return Collections.emptyList();
             }
+            parts.add(imagePart);
 
             userMsg.add("parts", parts);
             contents.add(userMsg);
 
             root.add("contents", contents);
+            JsonObject generationConfig = new JsonObject();
+            generationConfig.addProperty("temperature", 0.1);
+            generationConfig.addProperty("responseMimeType", "application/json");
+            root.add("generationConfig", generationConfig);
 
             // Gọi Gemini với retry
             String responseBody = callGeminiRawWithRetry(root);
@@ -227,7 +239,48 @@ public class ChatService {
                     .get("text").getAsString();
 
             try {
-                // Thử parse JSON từ response
+                // Clean markdown code block nếu có
+                String cleanText = text.trim();
+                if (cleanText.startsWith("```")) {
+                    cleanText = cleanText.replaceAll("```json\\s*", "").replaceAll("```\\s*", "").trim();
+                }
+
+                // Parse JSON array
+                JsonArray arr = JsonParser.parseString(cleanText).getAsJsonArray();
+                List<Map<String, String>> candidates = new ArrayList<>();
+
+                for (int i = 0; i < arr.size() && i < 3; i++) {
+                    JsonObject obj = arr.get(i).getAsJsonObject();
+                    String commonName = obj.has("common_name") ? obj.get("common_name").getAsString() : null;
+                    String scientificName = obj.has("scientific_name") ? obj.get("scientific_name").getAsString() : null;
+                    String confidence = obj.has("confidence") ? obj.get("confidence").getAsString() : "low";
+                    boolean diagnosticFeaturesVisible = obj.has("diagnostic_features_visible")
+                            && obj.get("diagnostic_features_visible").getAsBoolean();
+
+                    if ((commonName != null && !commonName.isBlank()) ||
+                        (scientificName != null && !scientificName.isBlank())) {
+                        Map<String, String> candidate = new HashMap<>();
+                        if (commonName != null && !commonName.isBlank()) candidate.put("common_name", commonName);
+                        if (scientificName != null && !scientificName.isBlank()) candidate.put("scientific_name", scientificName);
+                        candidate.put("confidence", confidence);
+                        candidate.put("diagnostic_features_visible", Boolean.toString(diagnosticFeaturesVisible));
+                        candidates.add(candidate);
+                    }
+                }
+
+                if (!candidates.isEmpty()) {
+                    log.info("Vision trả về {} candidates: {}", candidates.size(),
+                            candidates.stream().map(c -> c.getOrDefault("common_name", "?") +
+                            "(" + c.getOrDefault("confidence", "?") + ")").collect(Collectors.joining(", ")));
+                    return candidates;
+                }
+            } catch (Exception e) {
+                // Không parse được array → thử parse single object (fallback)
+                log.debug("Không parse được JSON array, thử single object: {}", e.getMessage());
+            }
+
+            // Fallback: thử parse single object (tương thích format cũ)
+            try {
                 String cleanText = text.trim();
                 if (cleanText.startsWith("```")) {
                     cleanText = cleanText.replaceAll("```json\\s*", "").replaceAll("```\\s*", "").trim();
@@ -236,18 +289,21 @@ public class ChatService {
                 String commonName = obj.has("common_name") ? obj.get("common_name").getAsString() : null;
                 String scientificName = obj.has("scientific_name") ? obj.get("scientific_name").getAsString() : null;
                 
-                // Trả về Map chứa cả 2 tên để caller dùng cho DB lookup
-                Map<String, String> result = new HashMap<>();
-                if (commonName != null && !commonName.isBlank()) result.put("common_name", commonName);
-                if (scientificName != null && !scientificName.isBlank()) result.put("scientific_name", scientificName);
-                if (!result.isEmpty()) return result;
-            } catch (Exception e) {
-                // Không parse được JSON → trả text thô
+                if ((commonName != null && !commonName.isBlank()) ||
+                    (scientificName != null && !scientificName.isBlank())) {
+                    Map<String, String> candidate = new HashMap<>();
+                    if (commonName != null && !commonName.isBlank()) candidate.put("common_name", commonName);
+                    if (scientificName != null && !scientificName.isBlank()) candidate.put("scientific_name", scientificName);
+                    candidate.put("confidence", "medium");
+                    return List.of(candidate);
+                }
+            } catch (Exception e2) {
+                // Không parse được gì → fallback text thô
             }
-            // Fallback: trả text thô dưới dạng common_name
-            Map<String, String> fallback = new HashMap<>();
-            fallback.put("common_name", text);
-            return fallback;
+
+            // Fallback cuối: trả text thô dưới dạng single candidate
+            log.warn("Gemini Vision returned invalid JSON; ignoring unsafe fallback text");
+            return Collections.emptyList();
         } catch (Exception e) {
             log.error("Gemini image identify error", e);
             return null;
@@ -263,87 +319,89 @@ public class ChatService {
      */
     private String answerWithImageAndDatabase(String userMessage, String imageUrl, String history) {
         try {
-            // 1. Gemini Vision nhận diện — trả về Map với common_name & scientific_name
-            Map<String, String> visionResult = identifyPlantNameFromImage(imageUrl);
-            
-            String identifiedPlantName = null;
-            String identifiedScientificName = null;
-            if (visionResult != null) {
-                identifiedPlantName = visionResult.get("common_name");
-                identifiedScientificName = visionResult.get("scientific_name");
-            }
+            // 1. Gemini Vision nhận diện — trả về Top 3 candidates
+            List<Map<String, String>> candidates = identifyPlantNameFromImage(imageUrl);
             
             // ===== GUARD: Vision không nhận diện được =====
-            if ((identifiedPlantName == null || identifiedPlantName.isBlank()) 
-                    && (identifiedScientificName == null || identifiedScientificName.isBlank())) {
-                return """
-                    <div class="rag-no-result">
-                        <p>⚠️ <b>Không thể nhận diện cây trong ảnh.</b></p>
-                        <p>Vui lòng thử lại với:</p>
-                        <ul>
-                            <li>Ảnh rõ nét hơn, chụp cận cảnh cây</li>
-                            <li>Hoặc mô tả cây bằng văn bản để tôi tra cứu</li>
-                        </ul>
-                    </div>
-                    """;
+            if (candidates == null) {
+                return "AI nhận diện hình ảnh đang tạm thời không khả dụng hoặc đã hết hạn mức. "
+                        + "Dữ liệu RAG không bị ảnh hưởng. Vui lòng thử lại sau hoặc nhập tên cây bằng chữ.";
+            }
+
+            if (candidates.isEmpty()) {
+                return "⚠️ Không thể nhận diện cây trong ảnh.\n\n" +
+                       "Vui lòng thử lại với:\n" +
+                       "- Ảnh rõ nét hơn, chụp cận cảnh cây\n" +
+                       "- Hoặc mô tả cây bằng văn bản để tôi tra cứu";
             }
             
-            log.info("Gemini Vision nhận diện cây: common={}, scientific={}", identifiedPlantName, identifiedScientificName);
-            
-            // 2. Tra cứu trực tiếp trong bảng plants để lấy tên chính xác trong DB
-            //    Thử common_name trước, nếu không có thì thử scientific_name
-            String dbPlantName = findMatchingPlantName(identifiedPlantName, identifiedScientificName);
-            String plantNameForQuery = (dbPlantName != null) ? dbPlantName 
-                    : (identifiedPlantName != null && !identifiedPlantName.isBlank()) ? identifiedPlantName 
-                    : identifiedScientificName;
-            
-            if (dbPlantName != null && identifiedPlantName != null 
-                    && !dbPlantName.equalsIgnoreCase(identifiedPlantName)) {
-                log.info("Đã map tên cây từ Vision '{}' -> tên trong DB '{}'", identifiedPlantName, dbPlantName);
+            // 2. Duyệt Top 3 candidates, tìm candidate đầu tiên khớp DB
+            // Candidate #1 alone determines identity. Database coverage must never
+            // promote a lower-ranked vision candidate to the final answer.
+            Map<String, String> first = primaryCandidate(candidates);
+            String commonName = first.get("common_name");
+            String scientificName = first.get("scientific_name");
+            String confidence = normalizeConfidence(first.get("confidence"));
+            String chosenDisplayName = firstNonBlank(commonName, scientificName);
+
+            if (chosenDisplayName == null) {
+                return "Kh\u00f4ng th\u1ec3 nh\u1eadn di\u1ec7n c\u00e2y trong \u1ea3nh. Vui l\u00f2ng g\u1eedi \u1ea3nh r\u00f5 n\u00e9t h\u01a1n.";
+            }
+
+            if (!hasSufficientVisualEvidence(first)) {
+                return "AI ch\u1ec9 c\u00f3 th\u1ec3 \u0111\u01b0a ra gi\u1ea3 thuy\u1ebft c\u00e2y trong \u1ea3nh l\u00e0 "
+                        + chosenDisplayName + ", nh\u01b0ng \u1ea3nh ch\u01b0a c\u00f3 \u0111\u1ee7 \u0111\u1eb7c \u0111i\u1ec3m h\u00ecnh th\u00e1i \u0111\u1ec3 x\u00e1c nh\u1eadn. "
+                        + "H\u1ec7 th\u1ed1ng s\u1ebd kh\u00f4ng truy xu\u1ea5t d\u1eef li\u1ec7u c\u1ee7a c\u00e2y n\u00e0y \u0111\u1ec3 tr\u00e1nh tr\u1ea3 l\u1eddi sai. "
+                        + "Vui l\u00f2ng g\u1eedi th\u00eam \u1ea3nh c\u1eadn c\u1ea3nh l\u00e1, hoa, qu\u1ea3 ho\u1eb7c v\u1ecf c\u00e2y.";
+            }
+
+            String dbPlantName = findMatchingPlantName(commonName, scientificName);
+            String chosenPlantName = dbPlantName != null ? dbPlantName : chosenDisplayName;
+
+            if (dbPlantName == null) {
+                return "AI nhận diện cây trong ảnh có thể là " + chosenDisplayName
+                        + ", nhưng tên này không khớp với cây nào trong cơ sở dữ liệu. "
+                        + "Hệ thống sẽ không truy xuất RAG để tránh lấy nhầm dữ liệu. "
+                        + "Vui lòng gửi thêm ảnh cận cảnh lá, hoa, quả hoặc nhập tên cây bằng chữ.";
+            }
+
+            // Log tóm tắt
+            boolean nameWasMapped = dbPlantName != null && chosenDisplayName != null
+                    && !dbPlantName.equalsIgnoreCase(chosenDisplayName);
+            if (nameWasMapped) {
+                log.info("Đã map tên cây từ Vision '{}' -> tên trong DB '{}'", chosenDisplayName, dbPlantName);
             }
             
-            // 3. Tạo câu hỏi text — LUÔN ghép tên cây đã nhận diện để RAG tìm đúng
-            //    Tránh bug: userMessage kiểu "đây là cây gì" không chứa tên cây → RAG trả lời sai
+            // 3. Tạo câu hỏi text cho RAG
+            String plantNameForQuery = (dbPlantName != null) ? dbPlantName : chosenPlantName;
             String textQuestion;
             if (userMessage != null && !userMessage.isBlank()) {
-                textQuestion = "Người dùng hỏi: \"" + userMessage + "\". "
-                        + "Cây trong ảnh được nhận diện là: " + plantNameForQuery + ". "
-                        + "Hãy cung cấp thông tin về cây " + plantNameForQuery + ".";
+                textQuestion = userMessage + " (cây " + plantNameForQuery + ")";
             } else {
                 textQuestion = "Cây " + plantNameForQuery + " có đặc điểm, công dụng gì?";
             }
             
-            // 4. DÙNG RAG PIPELINE — đã có entity verification + hybrid search
+            // 4. DÙNG RAG PIPELINE
             String ragResponse = ragPipelineService.processQuestion(textQuestion);
             
-            // 5. Bao kết quả với prefix nhận diện
+            // 5. Bao kết quả với prefix nhận diện (TEXT THUẦN)
             boolean notFound = ragResponse.contains("chưa có thông tin") 
                             || ragResponse.contains("rag-no-result")
                             || ragResponse.contains("không tìm thấy");
             
-            // Build tên hiển thị (ưu tiên common_name, fallback scientific_name)
-            String visionDisplayName = (identifiedPlantName != null && !identifiedPlantName.isBlank())
-                    ? identifiedPlantName
-                    : (identifiedScientificName != null) ? identifiedScientificName : "không xác định";
-            boolean nameWasMapped = dbPlantName != null && identifiedPlantName != null 
-                    && !dbPlantName.equalsIgnoreCase(identifiedPlantName);
+            // Build tên hiển thị
+            String displayName = nameWasMapped
+                    ? chosenDisplayName + " (" + dbPlantName + ")"
+                    : (chosenDisplayName != null ? chosenDisplayName : "không xác định");
             
             if (notFound) {
-                String displayName = nameWasMapped
-                    ? visionDisplayName + " (tên trong CSDL: " + dbPlantName + ")"
-                    : visionDisplayName;
-                return String.format("""
-                    <p>🔍 Hệ thống nhận diện cây trong ảnh có thể là: <b>%s</b></p>
-                    <p>⚠️ Tuy nhiên, cây này hiện chưa có trong cơ sở dữ liệu.</p>
-                    """, displayName) + ragResponse;
+                return "🔍 Hệ thống nhận diện cây trong ảnh có thể là: " + displayName + "\n\n" +
+                       "⚠️ Tuy nhiên, cây này hiện chưa có trong cơ sở dữ liệu.\n\n" +
+                       ragResponse;
             }
             
-            String displayName = nameWasMapped
-                ? visionDisplayName + " (" + dbPlantName + ")"
-                : visionDisplayName;
-            return String.format("""
-                <p>🔍 Hệ thống nhận diện cây trong ảnh là: <b>%s</b></p>
-                """, displayName) + ragResponse;
+            String recognitionText = "high".equals(confidence) ? "l\u00e0" : "c\u00f3 th\u1ec3 l\u00e0";
+            return "H\u1ec7 th\u1ed1ng nh\u1eadn di\u1ec7n c\u00e2y trong \u1ea3nh " + recognitionText + ": " + displayName + "\n\n" + ragResponse;
 
         } catch (Exception e) {
             log.error("Error in answerWithImageAndDatabase", e);
@@ -363,16 +421,16 @@ public class ChatService {
      * @param scientificName Tên khoa học từ Vision (vd: "Cynara scolymus"), có thể null
      * @return Tên cây trong DB nếu tìm thấy, null nếu không tìm thấy
      */
-    private String findMatchingPlantName(String commonName, String scientificName) {
-        // ===== BƯỚC 1: Tìm bằng common_name (tiếng Việt) =====
-        if (commonName != null && !commonName.isBlank()) {
-            String result = findPlantByWordMatch(commonName);
+    String findMatchingPlantName(String commonName, String scientificName) {
+        // ===== BƯỚC 1: Tìm bằng scientific_name trước (Latin → chính xác nhất) =====
+        if (scientificName != null && !scientificName.isBlank()) {
+            String result = findPlantByScientificName(scientificName);
             if (result != null) return result;
         }
         
-        // ===== BƯỚC 2: Tìm bằng scientific_name (Latin) =====
-        if (scientificName != null && !scientificName.isBlank()) {
-            String result = findPlantByScientificName(scientificName);
+        // ===== BƯỚC 2: Tìm bằng common_name (tiếng Việt) =====
+        if (commonName != null && !commonName.isBlank()) {
+            String result = findPlantByWordMatch(commonName);
             if (result != null) return result;
         }
         
@@ -381,43 +439,26 @@ public class ChatService {
     
     /**
      * Tìm plant bằng cách tách tên thành từng từ và tìm trong name, otherNames.
+     * Ưu tiên: exact name match > name contains > otherNames contains
+     * Yêu cầu: từ phải >= 4 ký tự để tránh false positive (vd: "măng" ≠ "mạng")
      */
     private String findPlantByWordMatch(String visionName) {
         try {
-            String[] words = visionName.toLowerCase().trim().split("\\s+");
-            List<String> searchWords = new ArrayList<>();
-            for (String w : words) {
-                if (w.length() >= 3) {
-                    searchWords.add(w);
+            String normalizedVisionName = normalizePlantName(visionName);
+            if (normalizedVisionName.isBlank()) return null;
+
+            List<Plant> candidates = new ArrayList<>();
+            candidates.addAll(plantRepository.findByNameContainingIgnoreCase(visionName.trim()));
+            candidates.addAll(plantRepository.findByOtherNamesContainingIgnoreCase(visionName.trim()));
+
+            for (Plant plant : candidates) {
+                if (plant.getName() != null
+                        && normalizePlantName(plant.getName()).equals(normalizedVisionName)) {
+                    return plant.getName();
                 }
-            }
-            if (searchWords.isEmpty() && words.length > 0) {
-                searchWords.add(words[0]);
-            }
-            if (searchWords.isEmpty()) return null;
-            
-            Map<Plant, Integer> plantScore = new LinkedHashMap<>();
-            
-            for (String word : searchWords) {
-                for (Plant p : plantRepository.findByNameContainingIgnoreCase(word)) {
-                    plantScore.merge(p, 2, Integer::sum);
+                if (containsExactAlias(plant.getOtherNames(), normalizedVisionName)) {
+                    return plant.getName();
                 }
-                for (Plant p : plantRepository.findByOtherNamesContainingIgnoreCase(word)) {
-                    plantScore.merge(p, 3, Integer::sum);
-                }
-            }
-            
-            if (plantScore.isEmpty()) return null;
-            
-            Plant bestMatch = plantScore.entrySet().stream()
-                    .max(Map.Entry.comparingByValue())
-                    .map(Map.Entry::getKey)
-                    .orElse(null);
-            
-            if (bestMatch != null && bestMatch.getName() != null) {
-                log.debug("Tìm thấy plant trong DB: '{}' (score={}) cho vision '{}'", 
-                        bestMatch.getName(), plantScore.get(bestMatch), visionName);
-                return bestMatch.getName();
             }
         } catch (Exception e) {
             log.warn("Lỗi khi tra cứu plant name '{}' trong DB: {}", visionName, e.getMessage());
@@ -431,42 +472,69 @@ public class ChatService {
      */
     private String findPlantByScientificName(String scientificName) {
         try {
-            // Tách scientific name thành từng từ (vd: "Cynara scolymus" → ["cynara", "scolymus"])
-            String[] words = scientificName.toLowerCase().trim().split("\\s+");
-            
-            // Tìm ít nhất 2 từ khớp trong scientificName của DB
-            Map<Plant, Integer> plantScore = new LinkedHashMap<>();
-            
-            for (String word : words) {
-                if (word.length() < 3) continue;
-                for (Plant p : plantRepository.findByScientificNameContainingIgnoreCase(word)) {
-                    plantScore.merge(p, 1, Integer::sum);
+            String canonicalName = canonicalScientificName(scientificName);
+            if (canonicalName.isBlank()) return null;
+
+            for (Plant plant : plantRepository.findByScientificNameContainingIgnoreCase(canonicalName)) {
+                if (plant.getScientificName() != null
+                        && canonicalScientificName(plant.getScientificName()).equals(canonicalName)) {
+                    return plant.getName();
                 }
-            }
-            
-            if (plantScore.isEmpty()) {
-                // Fallback: tìm toàn bộ scientific name
-                for (Plant p : plantRepository.findByScientificNameContainingIgnoreCase(scientificName)) {
-                    plantScore.put(p, 1);
-                }
-            }
-            
-            if (plantScore.isEmpty()) return null;
-            
-            Plant bestMatch = plantScore.entrySet().stream()
-                    .max(Map.Entry.comparingByValue())
-                    .map(Map.Entry::getKey)
-                    .orElse(null);
-            
-            if (bestMatch != null && bestMatch.getName() != null) {
-                log.debug("Tìm thấy plant qua scientific name: '{}' (sci={})", 
-                        bestMatch.getName(), bestMatch.getScientificName());
-                return bestMatch.getName();
             }
         } catch (Exception e) {
             log.warn("Lỗi khi tra cứu scientific name '{}': {}", scientificName, e.getMessage());
         }
         return null;
+    }
+
+    static String normalizeConfidence(String confidence) {
+        if (confidence == null) return "low";
+        String value = confidence.trim().toLowerCase(Locale.ROOT);
+        return value.equals("high") || value.equals("medium") ? value : "low";
+    }
+
+    static boolean hasSufficientVisualEvidence(Map<String, String> candidate) {
+        if (candidate == null) return false;
+        return "high".equals(normalizeConfidence(candidate.get("confidence")))
+                && Boolean.parseBoolean(candidate.get("diagnostic_features_visible"));
+    }
+
+    static Map<String, String> primaryCandidate(List<Map<String, String>> candidates) {
+        if (candidates == null || candidates.isEmpty()) return Collections.emptyMap();
+        return candidates.get(0);
+    }
+
+    static String firstNonBlank(String first, String second) {
+        if (first != null && !first.isBlank()) return first.trim();
+        if (second != null && !second.isBlank()) return second.trim();
+        return null;
+    }
+
+    static String normalizePlantName(String value) {
+        if (value == null) return "";
+        String normalized = Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .toLowerCase(Locale.ROOT)
+                .replace('đ', 'd')
+                .replaceAll("[^a-z0-9]+", " ")
+                .trim()
+                .replaceAll("\\s+", " ");
+        return normalized.replaceFirst("^cay\\s+", "");
+    }
+
+    static String canonicalScientificName(String value) {
+        if (value == null) return "";
+        Matcher matcher = Pattern.compile("([A-Za-z]+)\\s+([a-z][A-Za-z-]+)").matcher(value.trim());
+        if (!matcher.find()) return "";
+        return (matcher.group(1) + " " + matcher.group(2)).toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean containsExactAlias(String aliases, String normalizedName) {
+        if (aliases == null || aliases.isBlank()) return false;
+        for (String alias : aliases.split("[,;/|]")) {
+            if (normalizePlantName(alias).equals(normalizedName)) return true;
+        }
+        return false;
     }
 
     /**

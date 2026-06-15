@@ -7,6 +7,7 @@ import com.web.entity.Plant;
 import com.web.entity.Research;
 import com.web.entity.ResearchExpert;
 import com.web.entity.ResearchPlant;
+import com.web.entity.ChunkEmbedding;
 import com.web.enums.ArticleStatus;
 import com.web.enums.ResearchStatus;
 import com.web.exception.MessageException;
@@ -45,6 +46,9 @@ public class ResearchService {
 
     @Autowired
     private ExpertRepository expertRepository;
+
+    @Autowired
+    private RagIndexCoordinator ragIndexCoordinator;
 
     public Page<Research> getAll(String search, ResearchStatus status, Pageable pageable) {
         try {
@@ -200,14 +204,17 @@ public class ResearchService {
             }
         }
         
+        ragIndexCoordinator.syncAfterCommit(ChunkEmbedding.ContentType.research, research.getId());
         return research;
     }
 
+    @Transactional
     public void delete(Long id) {
         if (!researchRepository.existsById(id)) {
             throw new MessageException("Bài viết không tồn tại");
         }
         researchRepository.deleteById(id);
+        ragIndexCoordinator.syncAfterCommit(ChunkEmbedding.ContentType.research, id);
     }
 
     public Research findBySlug(String slug) {

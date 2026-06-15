@@ -6,6 +6,7 @@ import com.web.repository.ChunkEmbeddingRepository;
 import com.web.repository.PlantRepository;
 import com.web.repository.ArticleRepository;
 import com.web.repository.ResearchRepository;
+import com.web.repository.FolkRemedyRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,18 +16,22 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Service quản lý embedding: tạo chunk, gọi Cloudflare Worker Embedding API, lưu vào DB.
+ * Service quản lý embedding: tạo chunk, gọi Cloudflare Worker Embedding API,
+ * lưu vào DB.
  * <p>
  * THAY ĐỔI CHÍNH so với phiên bản cũ:
  * 1. Chuyển embedding sang Cloudflare Worker (không giới hạn request, miễn phí)
  * 2. Batch embedding: gộp nhiều chunk vào 1 request (max 50/batch)
- * 3. Tách @Transactional ra khỏi HTTP call → không giữ DB connection khi gọi API
+ * 3. Tách @Transactional ra khỏi HTTP call → không giữ DB connection khi gọi
+ * API
  * 4. @Async indexing → không block HTTP thread
  * 5. Retry + exponential backoff qua CloudflareAIService
  */
@@ -57,6 +62,9 @@ public class EmbeddingService {
     private ResearchRepository researchRepository;
 
     @Autowired
+    private FolkRemedyRepository folkRemedyRepository;
+
+    @Autowired
     private CloudflareAIService cloudflareAIService;
 
     @Autowired
@@ -84,35 +92,45 @@ public class EmbeddingService {
      */
     @Async("ragIndexingExecutor")
     public CompletableFuture<IndexingResult> indexAllAsync(List<FolkRemedy> folkRemedies) {
-        if (!indexingInProgress.compareAndSet(false, true)) {
-            log.warn("Indexing đang chạy, bỏ qua request mới");
-            return CompletableFuture.completedFuture(
-                    new IndexingResult(0, 0, 0, 0, "Indexing đang chạy, vui lòng đợi"));
-        }
-
         try {
             indexingStatus = "running";
             indexingProgress.set(0);
             log.info("===== BẮT ĐẦU ASYNC RAG INDEXING =====");
 
-            int plants = indexAllPlants();
+            BuildResult plantResult = buildAllPlants();
             indexingProgress.set(25);
 
-            int articles = indexAllArticles();
+            BuildResult articleResult = buildAllArticles();
             indexingProgress.set(50);
 
-            int research = indexAllResearch();
+            BuildResult researchResult = buildAllResearch();
             indexingProgress.set(75);
 
-            int folkRemediesCount = indexAllFolkRemedies(folkRemedies);
+            BuildResult folkRemedyResult = buildAllFolkRemedies(folkRemedies);
+            Map<ChunkEmbedding.ContentType, List<ChunkEmbedding>> newIndex =
+                    new EnumMap<>(ChunkEmbedding.ContentType.class);
+            newIndex.put(ChunkEmbedding.ContentType.plant, plantResult.chunks);
+            newIndex.put(ChunkEmbedding.ContentType.article, articleResult.chunks);
+            newIndex.put(ChunkEmbedding.ContentType.research, researchResult.chunks);
+            newIndex.put(ChunkEmbedding.ContentType.folk_remedy, folkRemedyResult.chunks);
+
+            int totalChunks = newIndex.values().stream().mapToInt(List::size).sum();
+            if (totalChunks == 0 && chunkEmbeddingRepository.count() > 0) {
+                throw new IllegalStateException(
+                        "Không tìm thấy dữ liệu đã xuất bản; giữ nguyên RAG index hiện tại");
+            }
+
+            chunkPersistenceService.replaceAll(newIndex);
             indexingProgress.set(100);
 
             indexingStatus = "completed";
             log.info("===== HOÀN TẤT RAG INDEXING: plants={}, articles={}, research={}, folkRemedies={} =====",
-                    plants, articles, research, folkRemediesCount);
+                    plantResult.entities, articleResult.entities,
+                    researchResult.entities, folkRemedyResult.entities);
 
             return CompletableFuture.completedFuture(
-                    new IndexingResult(plants, articles, research, folkRemediesCount, "success"));
+                    new IndexingResult(plantResult.entities, articleResult.entities,
+                            researchResult.entities, folkRemedyResult.entities, "success"));
 
         } catch (Exception e) {
             indexingStatus = "error: " + e.getMessage();
@@ -237,20 +255,43 @@ public class EmbeddingService {
      * Re-index một entity cụ thể
      */
     public void reindexEntity(ChunkEmbedding.ContentType contentType, Long entityId) {
-        chunkPersistenceService.deleteByTypeAndEntity(contentType, entityId);
-
+        List<ChunkEmbedding> chunks;
         switch (contentType) {
             case plant:
-                plantRepository.findById(entityId).ifPresent(this::indexPlant);
+                chunks = plantRepository.findById(entityId)
+                        .filter(p -> p.getPlantStatus() == com.web.enums.PlantStatus.DA_XUAT_BAN)
+                        .map(this::buildPlantChunks).orElse(Collections.emptyList());
                 break;
             case article:
-                articleRepository.findById(entityId).ifPresent(this::indexArticle);
+                chunks = articleRepository.findById(entityId)
+                        .filter(a -> a.getArticleStatus() == com.web.enums.ArticleStatus.DA_XUAT_BAN)
+                        .map(this::buildArticleChunks).orElse(Collections.emptyList());
                 break;
             case research:
-                researchRepository.findById(entityId).ifPresent(this::indexResearch);
+                chunks = researchRepository.findById(entityId)
+                        .filter(r -> r.getResearchStatus() == com.web.enums.ResearchStatus.DA_XUAT_BAN)
+                        .map(this::buildResearchChunks).orElse(Collections.emptyList());
+                break;
+            case folk_remedy:
+                chunks = folkRemedyRepository.findById(entityId)
+                        .filter(fr -> "approved".equals(fr.getStatus()))
+                        .map(this::buildFolkRemedyChunks).orElse(Collections.emptyList());
                 break;
             default:
                 log.warn("Unsupported content type for reindex: {}", contentType);
+                return;
+        }
+        chunkPersistenceService.replaceEntity(contentType, entityId, chunks);
+    }
+
+    @Async("ragIndexingExecutor")
+    public void syncEntityAsync(ChunkEmbedding.ContentType contentType, Long entityId) {
+        try {
+            reindexEntity(contentType, entityId);
+            log.info("Đã đồng bộ RAG entity type={}, id={}", contentType, entityId);
+        } catch (Exception e) {
+            log.error("Đồng bộ RAG entity thất bại type={}, id={}; index cũ được giữ nguyên",
+                    contentType, entityId, e);
         }
     }
 
@@ -294,7 +335,8 @@ public class EmbeddingService {
         }
 
         double denominator = Math.sqrt(normA) * Math.sqrt(normB);
-        if (denominator == 0) return 0.0;
+        if (denominator == 0)
+            return 0.0;
 
         return dotProduct / denominator;
     }
@@ -333,12 +375,80 @@ public class EmbeddingService {
         return indexingInProgress.get();
     }
 
+    public boolean beginFullIndexing() {
+        if (!indexingInProgress.compareAndSet(false, true)) {
+            return false;
+        }
+        indexingProgress.set(0);
+        indexingStatus = "queued";
+        return true;
+    }
+
+    public void failIndexingDispatch(String message) {
+        indexingStatus = "error: " + message;
+        indexingInProgress.set(false);
+    }
+
+    private BuildResult buildAllPlants() {
+        List<ChunkEmbedding> chunks = new ArrayList<>();
+        int entities = 0;
+        for (Plant plant : plantRepository.findAll()) {
+            if (plant.getPlantStatus() == com.web.enums.PlantStatus.DA_XUAT_BAN) {
+                chunks.addAll(buildPlantChunks(plant));
+                entities++;
+            }
+        }
+        return new BuildResult(entities, chunks);
+    }
+
+    private BuildResult buildAllArticles() {
+        List<ChunkEmbedding> chunks = new ArrayList<>();
+        int entities = 0;
+        for (Article article : articleRepository.findAll()) {
+            if (article.getArticleStatus() == com.web.enums.ArticleStatus.DA_XUAT_BAN) {
+                chunks.addAll(buildArticleChunks(article));
+                entities++;
+            }
+        }
+        return new BuildResult(entities, chunks);
+    }
+
+    private BuildResult buildAllResearch() {
+        List<ChunkEmbedding> chunks = new ArrayList<>();
+        int entities = 0;
+        for (Research research : researchRepository.findAll()) {
+            if (research.getResearchStatus() == com.web.enums.ResearchStatus.DA_XUAT_BAN) {
+                chunks.addAll(buildResearchChunks(research));
+                entities++;
+            }
+        }
+        return new BuildResult(entities, chunks);
+    }
+
+    private BuildResult buildAllFolkRemedies(List<FolkRemedy> folkRemedies) {
+        List<ChunkEmbedding> chunks = new ArrayList<>();
+        int entities = 0;
+        if (folkRemedies != null) {
+            for (FolkRemedy folkRemedy : folkRemedies) {
+                if ("approved".equals(folkRemedy.getStatus())) {
+                    chunks.addAll(buildFolkRemedyChunks(folkRemedy));
+                    entities++;
+                }
+            }
+        }
+        return new BuildResult(entities, chunks);
+    }
+
     // ================================================
     // PRIVATE METHODS: Chunking & Indexing
     // (DB operations delegated to ChunkPersistenceService)
     // ================================================
 
     private void indexPlant(Plant plant) {
+        chunkPersistenceService.saveBatch(buildPlantChunks(plant));
+    }
+
+    private List<ChunkEmbedding> buildPlantChunks(Plant plant) {
         StringBuilder fullText = new StringBuilder();
         fullText.append("Cây dược liệu: ").append(nullSafe(plant.getName())).append("\n");
         fullText.append("Tên khoa học: ").append(nullSafe(plant.getScientificName())).append("\n");
@@ -347,8 +457,10 @@ public class EmbeddingService {
         fullText.append("Chi: ").append(nullSafe(plant.getGenus())).append("\n");
         fullText.append("Bộ phận dùng: ").append(nullSafe(plant.getPartsUsed())).append("\n");
         fullText.append("Mô tả: ").append(stripHtml(nullSafe(plant.getDescription()))).append("\n");
-        fullText.append("Đặc điểm hình thái: ").append(stripHtml(nullSafe(plant.getBotanicalCharacteristics()))).append("\n");
-        fullText.append("Thành phần hóa học: ").append(stripHtml(nullSafe(plant.getChemicalComposition()))).append("\n");
+        fullText.append("Đặc điểm hình thái: ").append(stripHtml(nullSafe(plant.getBotanicalCharacteristics())))
+                .append("\n");
+        fullText.append("Thành phần hóa học: ").append(stripHtml(nullSafe(plant.getChemicalComposition())))
+                .append("\n");
         fullText.append("Phân bố: ").append(stripHtml(nullSafe(plant.getDistribution()))).append("\n");
         fullText.append("Sinh thái: ").append(stripHtml(nullSafe(plant.getEcology()))).append("\n");
         fullText.append("Công dụng y học: ").append(stripHtml(nullSafe(plant.getMedicinalUses()))).append("\n");
@@ -359,22 +471,30 @@ public class EmbeddingService {
         fullText.append("Tác dụng phụ: ").append(stripHtml(nullSafe(plant.getSideEffects()))).append("\n");
 
         List<String> chunks = splitIntoChunks(fullText.toString());
-        createAndSaveChunksWithBatchEmbedding(ChunkEmbedding.ContentType.plant, plant.getId(),
+        return createChunkEntitiesWithBatchEmbedding(ChunkEmbedding.ContentType.plant, plant.getId(),
                 plant.getSlug(), plant.getName(), chunks);
     }
 
     private void indexArticle(Article article) {
+        chunkPersistenceService.saveBatch(buildArticleChunks(article));
+    }
+
+    private List<ChunkEmbedding> buildArticleChunks(Article article) {
         StringBuilder fullText = new StringBuilder();
         fullText.append("Bài viết: ").append(nullSafe(article.getTitle())).append("\n");
         fullText.append("Tóm tắt: ").append(stripHtml(nullSafe(article.getExcerpt()))).append("\n");
         fullText.append("Nội dung: ").append(stripHtml(nullSafe(article.getContent()))).append("\n");
 
         List<String> chunks = splitIntoChunks(fullText.toString());
-        createAndSaveChunksWithBatchEmbedding(ChunkEmbedding.ContentType.article, article.getId(),
+        return createChunkEntitiesWithBatchEmbedding(ChunkEmbedding.ContentType.article, article.getId(),
                 article.getSlug(), article.getTitle(), chunks);
     }
 
     private void indexResearch(Research research) {
+        chunkPersistenceService.saveBatch(buildResearchChunks(research));
+    }
+
+    private List<ChunkEmbedding> buildResearchChunks(Research research) {
         StringBuilder fullText = new StringBuilder();
         fullText.append("Nghiên cứu: ").append(nullSafe(research.getTitle())).append("\n");
         fullText.append("Tác giả: ").append(nullSafe(research.getAuthors())).append("\n");
@@ -382,11 +502,15 @@ public class EmbeddingService {
         fullText.append("Nội dung: ").append(stripHtml(nullSafe(research.getContent()))).append("\n");
 
         List<String> chunks = splitIntoChunks(fullText.toString());
-        createAndSaveChunksWithBatchEmbedding(ChunkEmbedding.ContentType.research, research.getId(),
+        return createChunkEntitiesWithBatchEmbedding(ChunkEmbedding.ContentType.research, research.getId(),
                 research.getSlug(), research.getTitle(), chunks);
     }
 
     private void indexFolkRemedy(FolkRemedy fr) {
+        chunkPersistenceService.saveBatch(buildFolkRemedyChunks(fr));
+    }
+
+    private List<ChunkEmbedding> buildFolkRemedyChunks(FolkRemedy fr) {
         StringBuilder fullText = new StringBuilder();
         fullText.append("Bài thuốc dân gian: ").append(nullSafe(fr.getName())).append("\n");
         fullText.append("Mô tả: ").append(stripHtml(nullSafe(fr.getDescription()))).append("\n");
@@ -395,22 +519,26 @@ public class EmbeddingService {
         fullText.append("Chống chỉ định: ").append(stripHtml(nullSafe(fr.getContraindication()))).append("\n");
 
         List<String> chunks = splitIntoChunks(fullText.toString());
-        createAndSaveChunksWithBatchEmbedding(ChunkEmbedding.ContentType.folk_remedy, fr.getId(),
+        return createChunkEntitiesWithBatchEmbedding(ChunkEmbedding.ContentType.folk_remedy, fr.getId(),
                 fr.getSlug(), fr.getName(), chunks);
     }
 
     /**
-     * Tạo chunks, gọi batch embedding (NGOÀI transaction), rồi save vào DB (transaction ngắn).
+     * Tạo chunks, gọi batch embedding (NGOÀI transaction), rồi save vào DB
+     * (transaction ngắn).
      * 
      * ĐÂY LÀ THAY ĐỔI QUAN TRỌNG NHẤT:
-     * - saveChunks cũ: mỗi chunk → 1 HTTP call + save → tất cả trong 1 @Transactional
-     * - Phiên bản mới: tất cả chunks → 1 batch HTTP call (ngoài TX) → 1 batch save (TX ngắn)
+     * - saveChunks cũ: mỗi chunk → 1 HTTP call + save → tất cả trong
+     * 1 @Transactional
+     * - Phiên bản mới: tất cả chunks → 1 batch HTTP call (ngoài TX) → 1 batch save
+     * (TX ngắn)
      */
-    private void createAndSaveChunksWithBatchEmbedding(
+    private List<ChunkEmbedding> createChunkEntitiesWithBatchEmbedding(
             ChunkEmbedding.ContentType contentType, Long entityId,
             String entitySlug, String entityName, List<String> chunks) {
 
-        if (chunks.isEmpty()) return;
+        if (chunks.isEmpty())
+            return Collections.emptyList();
 
         // Filter empty chunks
         List<String> validChunks = new ArrayList<>();
@@ -419,7 +547,8 @@ public class EmbeddingService {
                 validChunks.add(chunk);
             }
         }
-        if (validChunks.isEmpty()) return;
+        if (validChunks.isEmpty())
+            return Collections.emptyList();
 
         // Phase 1: Batch embed — NGOÀI @Transactional, không giữ DB connection
         List<List<Double>> embeddings = Collections.emptyList();
@@ -439,7 +568,14 @@ public class EmbeddingService {
                 }
             }
         } catch (Exception e) {
-            log.warn("Batch embedding lỗi cho {} {}: {}", contentType, entityName, e.getMessage());
+            throw new IllegalStateException("Không thể tạo embedding cho " + entityName, e);
+        }
+
+        if (embeddings == null || embeddings.size() != validChunks.size()
+                || embeddings.stream().anyMatch(vector -> vector == null || vector.isEmpty())) {
+            throw new IllegalStateException("Embedding không đầy đủ cho " + entityName
+                    + " (cần " + validChunks.size() + ", nhận "
+                    + (embeddings == null ? 0 : embeddings.size()) + ")");
         }
 
         // Phase 2: Tạo ChunkEmbedding entities
@@ -452,24 +588,19 @@ public class EmbeddingService {
             ce.setEntityName(entityName);
             ce.setChunkText(validChunks.get(i));
 
-            // Set embedding nếu có
-            if (embeddings != null && i < embeddings.size() && embeddings.get(i) != null && !embeddings.get(i).isEmpty()) {
-                ce.setEmbedding(gson.toJson(embeddings.get(i)));
-            }
+            ce.setEmbedding(gson.toJson(embeddings.get(i)));
 
             chunkEntities.add(ce);
         }
 
-        // Phase 3: Save batch — transaction ngắn via ChunkPersistenceService (tránh self-invocation)
-        chunkPersistenceService.saveBatch(chunkEntities);
-
-        log.debug("Đã index {} chunks cho {} '{}'", chunkEntities.size(), contentType, entityName);
+        log.debug("Đã chuẩn bị {} chunks cho {} '{}'", chunkEntities.size(), contentType, entityName);
+        return chunkEntities;
     }
 
     /**
      * Tách text dài thành các chunk nhỏ hơn, có overlap
      */
-    private List<String> splitIntoChunks(String text) {
+    List<String> splitIntoChunks(String text) {
         List<String> chunks = new ArrayList<>();
         if (text == null || text.trim().isEmpty()) {
             return chunks;
@@ -497,16 +628,23 @@ public class EmbeddingService {
             }
 
             chunks.add(cleanText.substring(start, end).trim());
-            
+
+            // Đã thêm đoạn cuối thì dừng ngay. Nếu tiếp tục áp dụng overlap,
+            // cùng 200 ký tự cuối sẽ bị tạo lại nhiều lần.
+            if (end >= cleanText.length()) {
+                break;
+            }
+
             // Ensure start advances strictly to avoid infinite loop
             int nextStart = end - CHUNK_OVERLAP;
             if (nextStart <= start) {
                 nextStart = start + 1; // force advance if overlap is too large
             }
             start = nextStart;
-            
+
             // Tránh vòng lặp vô hạn
-            if (start >= cleanText.length()) break;
+            if (start >= cleanText.length())
+                break;
         }
 
         return chunks;
@@ -520,7 +658,8 @@ public class EmbeddingService {
      * Loại bỏ HTML tags khỏi text
      */
     private String stripHtml(String html) {
-        if (html == null || html.isEmpty()) return "";
+        if (html == null || html.isEmpty())
+            return "";
         return html.replaceAll("<[^>]*>", " ")
                 .replaceAll("&nbsp;", " ")
                 .replaceAll("&amp;", "&")
@@ -534,6 +673,16 @@ public class EmbeddingService {
     // DTO: Indexing Result
     // ================================================
 
+    private static class BuildResult {
+        private final int entities;
+        private final List<ChunkEmbedding> chunks;
+
+        private BuildResult(int entities, List<ChunkEmbedding> chunks) {
+            this.entities = entities;
+            this.chunks = chunks;
+        }
+    }
+
     /**
      * DTO chứa kết quả indexing
      */
@@ -545,7 +694,7 @@ public class EmbeddingService {
         private final String status;
 
         public IndexingResult(int plantsIndexed, int articlesIndexed,
-                              int researchIndexed, int folkRemediesIndexed, String status) {
+                int researchIndexed, int folkRemediesIndexed, String status) {
             this.plantsIndexed = plantsIndexed;
             this.articlesIndexed = articlesIndexed;
             this.researchIndexed = researchIndexed;
@@ -553,10 +702,24 @@ public class EmbeddingService {
             this.status = status;
         }
 
-        public int getPlantsIndexed() { return plantsIndexed; }
-        public int getArticlesIndexed() { return articlesIndexed; }
-        public int getResearchIndexed() { return researchIndexed; }
-        public int getFolkRemediesIndexed() { return folkRemediesIndexed; }
-        public String getStatus() { return status; }
+        public int getPlantsIndexed() {
+            return plantsIndexed;
+        }
+
+        public int getArticlesIndexed() {
+            return articlesIndexed;
+        }
+
+        public int getResearchIndexed() {
+            return researchIndexed;
+        }
+
+        public int getFolkRemediesIndexed() {
+            return folkRemediesIndexed;
+        }
+
+        public String getStatus() {
+            return status;
+        }
     }
 }

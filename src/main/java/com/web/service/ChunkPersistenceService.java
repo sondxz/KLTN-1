@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Service tách riêng cho các DB operation có @Transactional.
@@ -54,5 +55,28 @@ public class ChunkPersistenceService {
         if (chunks == null || chunks.isEmpty()) return;
         chunkEmbeddingRepository.saveAll(chunks);
         log.debug("Đã lưu {} chunks vào DB", chunks.size());
+    }
+
+    @Transactional
+    public void replaceAll(Map<ChunkEmbedding.ContentType, List<ChunkEmbedding>> chunksByType) {
+        for (ChunkEmbedding.ContentType contentType : chunksByType.keySet()) {
+            chunkEmbeddingRepository.deleteByContentType(contentType);
+        }
+        for (List<ChunkEmbedding> chunks : chunksByType.values()) {
+            if (chunks != null && !chunks.isEmpty()) {
+                chunkEmbeddingRepository.saveAll(chunks);
+            }
+        }
+        chunkEmbeddingRepository.flush();
+    }
+
+    @Transactional
+    public void replaceEntity(ChunkEmbedding.ContentType contentType, Long entityId,
+                              List<ChunkEmbedding> chunks) {
+        chunkEmbeddingRepository.deleteByContentTypeAndEntityId(contentType, entityId);
+        if (chunks != null && !chunks.isEmpty()) {
+            chunkEmbeddingRepository.saveAll(chunks);
+        }
+        chunkEmbeddingRepository.flush();
     }
 }

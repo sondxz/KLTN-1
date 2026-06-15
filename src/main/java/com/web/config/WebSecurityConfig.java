@@ -73,6 +73,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                         "/webjars/**",
                         "/ws/**"
                 ).permitAll()
+                .antMatchers("/api/chat/admin/**").hasAuthority(Contains.ROLE_ADMIN)
                 .antMatchers(
                         "/api/authenticate",
                         "/api/login",
@@ -83,7 +84,6 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                         "/api/forgot-password",
                         "/api/send-new-otp",
                         "/api/chat",
-                        "/api/chat/**",
                         "/api/message/upload-file",
                         "/api/public/**",
                         "/api/*/public/**",

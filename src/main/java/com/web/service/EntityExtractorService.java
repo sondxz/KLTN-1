@@ -15,6 +15,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.text.Normalizer;
 import java.time.Duration;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -283,6 +284,12 @@ public class EntityExtractorService {
             "cho", "về", "từ", "đến", "bằng", "như", "những", "các"
     );
 
+    private static final Set<String> GENERIC_INTENT_PHRASES = Set.of(
+            "cong dung", "chong chi dinh", "lieu dung", "lieu luong",
+            "cach dung", "cach su dung", "tac dung phu", "dac diem",
+            "thanh phan", "mo ta"
+    );
+
     /**
      * Filter danh sách entity: chỉ giữ entity có ít nhất 1 từ (>= 3 ký tự)
      * xuất hiện trong câu hỏi gốc, VÀ từ đó KHÔNG phải là stopword tiếng Việt.
@@ -303,6 +310,9 @@ public class EntityExtractorService {
 
         for (String entity : entities) {
             if (entity == null || entity.trim().isEmpty()) {
+                continue;
+            }
+            if (GENERIC_INTENT_PHRASES.contains(normalizeForComparison(entity))) {
                 continue;
             }
 
@@ -330,11 +340,21 @@ public class EntityExtractorService {
         return filtered;
     }
 
+    private static String normalizeForComparison(String value) {
+        return Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .toLowerCase(Locale.ROOT)
+                .replace('đ', 'd')
+                .replaceAll("[^a-z0-9]+", " ")
+                .trim()
+                .replaceAll("\\s+", " ");
+    }
+
     /**
      * TẦNG 2: Regex fallback — chỉ bắt pattern rõ ràng.
      * Không kỳ vọng phủ hết mọi biến thể tiếng Việt.
      */
-    private Map<String, List<String>> extractWithRegex(String question) {
+    Map<String, List<String>> extractWithRegex(String question) {
         Map<String, List<String>> result = new LinkedHashMap<>();
         result.put("plants", extractPattern(question, PLANT_PATTERN));
         result.put("diseases", extractPattern(question, DISEASE_PATTERN));

@@ -3,6 +3,7 @@ package com.web.service;
 import com.web.entity.Diseases;
 import com.web.entity.FolkRemedy;
 import com.web.entity.Plant;
+import com.web.entity.ChunkEmbedding;
 import com.web.exception.MessageException;
 import com.web.repository.DiseasesRepository;
 import com.web.repository.FolkRemedyRepository;
@@ -33,6 +34,9 @@ public class FolkRemedyService {
 
     @Autowired
     private DiseasesRepository diseasesRepository;
+
+    @Autowired
+    private RagIndexCoordinator ragIndexCoordinator;
 
     // ================================================
     // PUBLIC ACCESS
@@ -138,7 +142,9 @@ public class FolkRemedyService {
             folkRemedy.setDiseases(diseases);
         }
 
-        return folkRemedyRepository.save(folkRemedy);
+        FolkRemedy saved = folkRemedyRepository.save(folkRemedy);
+        ragIndexCoordinator.syncAfterCommit(ChunkEmbedding.ContentType.folk_remedy, saved.getId());
+        return saved;
     }
 
     /**
@@ -182,7 +188,9 @@ public class FolkRemedyService {
             existing.setDiseases(diseases);
         }
 
-        return folkRemedyRepository.save(existing);
+        FolkRemedy saved = folkRemedyRepository.save(existing);
+        ragIndexCoordinator.syncAfterCommit(ChunkEmbedding.ContentType.folk_remedy, saved.getId());
+        return saved;
     }
 
     /**
@@ -193,7 +201,9 @@ public class FolkRemedyService {
         FolkRemedy fr = findById(id);
         fr.setStatus("approved");
         log.info("Approved folk remedy: {} (ID={})", fr.getName(), id);
-        return folkRemedyRepository.save(fr);
+        FolkRemedy saved = folkRemedyRepository.save(fr);
+        ragIndexCoordinator.syncAfterCommit(ChunkEmbedding.ContentType.folk_remedy, saved.getId());
+        return saved;
     }
 
     /**
@@ -204,7 +214,9 @@ public class FolkRemedyService {
         FolkRemedy fr = findById(id);
         fr.setStatus("rejected");
         log.info("Rejected folk remedy: {} (ID={})", fr.getName(), id);
-        return folkRemedyRepository.save(fr);
+        FolkRemedy saved = folkRemedyRepository.save(fr);
+        ragIndexCoordinator.syncAfterCommit(ChunkEmbedding.ContentType.folk_remedy, saved.getId());
+        return saved;
     }
 
     /**
@@ -216,6 +228,7 @@ public class FolkRemedyService {
             throw new MessageException("Không tìm thấy bài thuốc có ID = " + id);
         }
         folkRemedyRepository.deleteById(id);
+        ragIndexCoordinator.syncAfterCommit(ChunkEmbedding.ContentType.folk_remedy, id);
         log.info("Deleted folk remedy ID={}", id);
     }
 

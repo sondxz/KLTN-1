@@ -42,4 +42,7 @@ src/main/resources/application-prod.properties
 .env.local
 .env.production
 *.sql
+docker/mysql-init/01-cayduoclieu.sql
 *.md
+!docs/PHAN_TICH_LUONG_XU_LY_CHUC_NANG.md
+

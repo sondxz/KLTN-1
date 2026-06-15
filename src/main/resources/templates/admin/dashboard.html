@@ -174,38 +174,60 @@
   </div>
 
   <script>
-    function syncRagData() {
+    async function syncRagData() {
         if(!confirm('Bạn có chắc chắn muốn đồng bộ dữ liệu RAG không? Quá trình này sẽ đọc lại toàn bộ Cây thuốc, Bài viết, Nghiên cứu và Bài thuốc dân gian để đưa vào Vector DB. Có thể mất vài phút!')) return;
-        
+
         const btn = document.getElementById('btnSyncRag');
         const originalText = btn.innerHTML;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang đồng bộ...';
         btn.disabled = true;
-        
-        fetch('/api/chat/admin/index-rag', {
-            method: 'POST',
-            headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('token')
+
+        const authHeaders = {
+            'Authorization': 'Bearer ' + localStorage.getItem('token')
+        };
+
+        try {
+            const startResponse = await fetch('/api/chat/admin/index-rag', {
+                method: 'POST',
+                headers: authHeaders
+            });
+            const startData = await startResponse.json().catch(() => ({}));
+            if (!startResponse.ok && startResponse.status !== 409) {
+                throw new Error(startData.message || 'Không thể khởi động đồng bộ RAG');
             }
-        })
-        .then(async res => {
-            const data = await res.json().catch(() => ({}));
-            if(res.ok) {
-                toastr.success(`Đồng bộ thành công! Đã cập nhật ${data.totalChunks} đoạn dữ liệu.`);
-                console.log(data);
-            } else {
-                toastr.error('Lỗi đồng bộ: ' + (data.message || 'Vui lòng kiểm tra lại cấu hình Gemini API hoặc Database'));
+
+            const deadline = Date.now() + 15 * 60 * 1000;
+            while (Date.now() < deadline) {
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                const progressResponse = await fetch('/api/chat/admin/indexing-progress', {
+                    headers: authHeaders
+                });
+                const progress = await progressResponse.json().catch(() => ({}));
+                if (!progressResponse.ok) {
+                    throw new Error(progress.message || 'Không đọc được tiến trình đồng bộ');
+                }
+
+                const percent = Number(progress.progress || 0);
+                btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Đang đồng bộ ${percent}%`;
+
+                if (!progress.isRunning) {
+                    if (progress.status === 'completed') {
+                        toastr.success(`Đồng bộ thành công: ${progress.chunksWithEmbedding}/${progress.totalChunks} đoạn đã có vector AI.`);
+                        return;
+                    }
+                    throw new Error((progress.status || 'Đồng bộ thất bại').replace(/^error:\s*/i, ''));
+                }
             }
-        })
-        .catch(err => {
-            toastr.error('Lỗi kết nối khi đồng bộ RAG');
+
+            throw new Error('Đồng bộ quá thời gian 15 phút');
+        } catch (err) {
+            toastr.error('Lỗi đồng bộ: ' + err.message + '. Dữ liệu RAG cũ vẫn được giữ nguyên.');
             console.error(err);
-        })
-        .finally(() => {
+        } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
             lucide.createIcons();
-        });
+        }
     }
   </script>
 </body>

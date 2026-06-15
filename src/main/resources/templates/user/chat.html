@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html >
+<!DOCTYPE html >
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
 </head>
@@ -51,7 +51,7 @@
     </button>
   </div>
 
-  <script>
+  <script th:inline="none">
     let isOpen = false;
     let messages = [];
     let showSuggestions = false;
@@ -207,8 +207,11 @@
               .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
           // Linkify full URLs
           safe = safe.replace(/(https?:\/\/[^\s<>"]+)/g, '<a href="$1" target="_blank">$1</a>');
-          // Linkify internal paths after "Nguồn: "
-          safe = safe.replace(/Nguồn:\s*(\/[^\s\n]+)/g, 'Nguồn: <a href="$1" target="_blank">$1</a>');
+          // Parse markdown-style source links: Nguồn: [Tên cây](/path)
+          safe = safe.replace(/Nguồn:\s*\[([^\]]+)\]\(([^)]+)\)/g,
+              'Nguồn: <a href="$2" class="source-link" title="Xem chi tiết $1">$1</a>');
+          // Fallback: Linkify plain internal paths after "Nguồn: "
+          safe = safe.replace(/Nguồn:\s*(\/[^\s\n]+)/g, 'Nguồn: <a href="$1" class="source-link">$1</a>');
           bodyDiv.innerHTML = safe;
           messageDiv.appendChild(bodyDiv);
         } else {
@@ -297,8 +300,8 @@
           uploadedImageUrl = await uploadImage(fileToSend);
 
           // Cập nhật URL ảnh vào message user để lưu history
-          messages[messages.length - 1].fileUrl = uploadedImageUrl;
-          messages[messages.length - 1].file = null; // xóa blob, dùng URL
+          userMessage.fileUrl = uploadedImageUrl;
+          userMessage.file = null; // xóa blob, dùng URL
 
           // Nối URL ảnh vào tin nhắn theo format mà backend mong đợi
           finalMessage += ` Ảnh kèm theo: ${uploadedImageUrl}`;

@@ -9,6 +9,7 @@ import com.web.entity.Families;
 import com.web.entity.Plant;
 import com.web.entity.PlantDiseases;
 import com.web.entity.PlantMedia;
+import com.web.entity.ChunkEmbedding;
 import com.web.enums.PlantStatus;
 import com.web.exception.MessageException;
 import com.web.repository.DiseasesRepository;
@@ -70,6 +71,9 @@ public class PlantService {
 
     @Autowired
     private UserUtils userUtils;
+
+    @Autowired
+    private RagIndexCoordinator ragIndexCoordinator;
 
     private String normalizeString(String str) {
         if (str == null || str.trim().isEmpty()) {
@@ -480,6 +484,7 @@ public class PlantService {
                 }
             }
         }
+        ragIndexCoordinator.syncAfterCommit(ChunkEmbedding.ContentType.plant, savedPlant.getId());
         return savedPlant;
     }
 
@@ -897,6 +902,7 @@ public class PlantService {
             
             // 3. Cuối cùng mới xóa Plant
             plantRepository.deleteById(id);
+            ragIndexCoordinator.syncAfterCommit(ChunkEmbedding.ContentType.plant, id);
         }
         catch (Exception e){
             logger.error("Error deleting plant with ID {}: {}", id, e.getMessage(), e);
@@ -1057,6 +1063,7 @@ public class PlantService {
     /**
      * Duyệt hoặc từ chối cây dược liệu (chỉ EXPERT và ADMIN)
      */
+    @Transactional
     public Plant approveOrReject(Long id, PlantStatus status) {
         Plant plant = findById(id);
         if(plant == null){
@@ -1066,7 +1073,9 @@ public class PlantService {
             throw new MessageException("Trạng thái không hợp lệ. Chỉ có thể duyệt (DA_XUAT_BAN) hoặc từ chối (TU_CHOI)");
         }
         plant.setPlantStatus(status);
-        return plantRepository.save(plant);
+        Plant saved = plantRepository.save(plant);
+        ragIndexCoordinator.syncAfterCommit(ChunkEmbedding.ContentType.plant, saved.getId());
+        return saved;
     }
 
     /**
