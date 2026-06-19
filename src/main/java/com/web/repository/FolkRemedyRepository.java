@@ -81,6 +81,19 @@ public interface FolkRemedyRepository extends JpaRepository<FolkRemedy, Long> {
     @Query("SELECT fr FROM FolkRemedy fr WHERE fr.status = 'approved'")
     List<FolkRemedy> findAllApproved();
 
+    @Query("""
+            SELECT DISTINCT fr FROM FolkRemedy fr
+            LEFT JOIN fr.diseases d
+            WHERE fr.status = 'approved'
+              AND (
+                   LOWER(fr.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                   OR LOWER(fr.description) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                   OR LOWER(d.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+              )
+            ORDER BY fr.createdAt DESC
+            """)
+    List<FolkRemedy> findApprovedByKeyword(@Param("keyword") String keyword);
+
     /**
      * Đếm theo trạng thái
      */

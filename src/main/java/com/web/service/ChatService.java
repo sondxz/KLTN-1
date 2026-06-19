@@ -46,7 +46,12 @@ public class ChatService {
     @Autowired
     private PlantRepository plantRepository;
 
-    private static final String GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+    private static final String GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
+    private static final List<String> VISION_MODELS = List.of(
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash"
+    );
     private static final Pattern IMAGE_URL_PATTERN = Pattern.compile("Ảnh kèm theo:\\s*(https?://\\S+)");
     private static final Pattern DATA_URL_PATTERN = Pattern.compile("Ảnh kèm theo:\\s*(data:image/[^\\s]+)");
 
@@ -548,7 +553,7 @@ public class ChatService {
         for (int attempt = 1; attempt <= VISION_MAX_RETRIES; attempt++) {
             try {
                 HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(GEMINI_URL + "?key=" + geminiApiKey))
+                        .uri(URI.create(GEMINI_BASE_URL + VISION_MODELS.get(0) + ":generateContent?key=" + geminiApiKey))
                         .header("Content-Type", "application/json")
                         .timeout(java.time.Duration.ofSeconds(geminiTimeoutSeconds))
                         .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
@@ -566,7 +571,8 @@ public class ChatService {
                             response.statusCode(), attempt, VISION_MAX_RETRIES);
                 } else {
                     // Non-retryable
-                    log.error("Gemini Vision API returned status {}", response.statusCode());
+                    log.error("Gemini Vision API returned status {}: {}",
+                            response.statusCode(), summarizeErrorBody(response.body()));
                     return null;
                 }
 
@@ -590,5 +596,11 @@ public class ChatService {
 
         log.error("Gemini Vision API thất bại sau {} lần retry", VISION_MAX_RETRIES);
         return null;
+    }
+
+    private String summarizeErrorBody(String body) {
+        if (body == null || body.isBlank()) return "";
+        String compact = body.replaceAll("\\s+", " ").trim();
+        return compact.length() <= 800 ? compact : compact.substring(0, 800) + "...";
     }
 }

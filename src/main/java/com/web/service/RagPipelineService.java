@@ -2,11 +2,21 @@ package com.web.service;
  
 import com.google.gson.*;
 import com.web.entity.ChunkEmbedding;
+import com.web.entity.FolkRemedy;
+import com.web.entity.Plant;
+import com.web.entity.PlantDiseases;
+import com.web.entity.Research;
+import com.web.enums.PlantStatus;
 import com.web.repository.ChunkEmbeddingRepository;
+import com.web.repository.FolkRemedyRepository;
+import com.web.repository.PlantDiseasesRepository;
+import com.web.repository.PlantRepository;
+import com.web.repository.ResearchRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
  
 import java.net.URI;
@@ -39,6 +49,16 @@ public class RagPipelineService {
     private static final int TOP_K = 5;
     private static final double COSINE_THRESHOLD = 0.70;
     private static final int GEMINI_MAX_RETRIES = 2;
+    private static final String NO_DATA_RESPONSE = """
+            Xin lỗi, tôi chưa tìm thấy thông tin phù hợp trong cơ sở dữ liệu.
+
+            Bạn có thể:
+            • Đặt lại câu hỏi với từ khóa cụ thể hơn.
+            • Sử dụng tên gọi khác của đối tượng cần tìm.
+            • Hỏi về một chủ đề liên quan khác.
+
+            Tôi sẽ cố gắng hỗ trợ bạn tra cứu thông tin phù hợp nhất.
+            """.trim();
  
     private static final Map<ChunkEmbedding.ContentType, Double> SOURCE_PRIORITY;
     static {
@@ -49,6 +69,19 @@ public class RagPipelineService {
         SOURCE_PRIORITY.put(ChunkEmbedding.ContentType.research, 1.0);
         SOURCE_PRIORITY.put(ChunkEmbedding.ContentType.disease, 1.0);
     }
+
+    private static final Map<String, List<String>> HEALTH_KEYWORD_ALIASES = Map.ofEntries(
+            Map.entry("dau da day", List.of("viem loet da day", "da day", "dau bao tu", "bao tu", "tieu hoa")),
+            Map.entry("da day", List.of("viem loet da day", "dau da day", "dau bao tu", "bao tu", "tieu hoa")),
+            Map.entry("dau bao tu", List.of("dau da day", "viem loet da day", "da day", "bao tu", "tieu hoa")),
+            Map.entry("bao tu", List.of("dau da day", "viem loet da day", "da day", "dau bao tu", "tieu hoa")),
+            Map.entry("tieu hoa", List.of("day bung", "tieu hoa kem", "viem ruot", "da day")),
+            Map.entry("mat ngu", List.of("kho ngu")),
+            Map.entry("kho ngu", List.of("mat ngu")),
+            Map.entry("ho", List.of("ho co dom", "viem hong")),
+            Map.entry("dom", List.of("ho co dom", "tieu dom")),
+            Map.entry("nhieu dom", List.of("ho co dom", "tieu dom", "dom"))
+    );
  
     private static final String PROMPT_TEMPLATE = """
             Bạn là chuyên gia tư vấn về cây dược liệu Việt Nam. Hãy trả lời câu hỏi của người dùng một cách tự nhiên, thân thiện và chính xác, CHỈ dựa vào thông tin tham khảo bên dưới.
@@ -88,6 +121,18 @@ public class RagPipelineService {
  
     @Autowired
     private ChunkEmbeddingRepository chunkEmbeddingRepository;
+
+    @Autowired
+    private PlantDiseasesRepository plantDiseasesRepository;
+
+    @Autowired
+    private PlantRepository plantRepository;
+
+    @Autowired
+    private FolkRemedyRepository folkRemedyRepository;
+
+    @Autowired
+    private ResearchRepository researchRepository;
  
     @Autowired
     private EmbeddingService embeddingService;
@@ -117,6 +162,35 @@ public class RagPipelineService {
             extractedEntities = resolveSpecificPlantEntities(extractedEntities, question);
             String entityDesc = buildEntityDescription(extractedEntities);
             log.info("RAG: Extracted entities: {}", extractedEntities);
+
+            if (isOutOfScopeQuestion(question)) {
+                return "Câu hỏi này nằm ngoài phạm vi dữ liệu cây dược liệu, bài thuốc dân gian và nghiên cứu hiện có trong hệ thống.";
+            }
+
+            String diseaseToPlantResponse = answerDiseaseToPlantQuestion(question, extractedEntities);
+            if (diseaseToPlantResponse != null) {
+                return diseaseToPlantResponse;
+            }
+
+            String plantToDiseaseResponse = answerPlantToDiseaseQuestion(question, extractedEntities);
+            if (plantToDiseaseResponse != null) {
+                return plantToDiseaseResponse;
+            }
+
+            String plantAttributeResponse = answerPlantAttributeQuestion(question, extractedEntities);
+            if (plantAttributeResponse != null) {
+                return plantAttributeResponse;
+            }
+
+            String folkRemedyResponse = answerFolkRemedyQuestion(question, extractedEntities);
+            if (folkRemedyResponse != null) {
+                return folkRemedyResponse;
+            }
+
+            String researchResponse = answerResearchQuestion(question, extractedEntities);
+            if (researchResponse != null) {
+                return researchResponse;
+            }
 
             if (!hasAnyEntity(extractedEntities) && requiresSpecificEntity(question)) {
                 return "Bạn muốn hỏi liều lượng hoặc cách sử dụng của cây dược liệu/bài thuốc nào? "
@@ -313,6 +387,952 @@ public class RagPipelineService {
         if (!matcher.find()) return null;
         String subject = matcher.group(1).trim().replaceAll("\\s+", " ");
         return subject.length() >= 2 ? subject : null;
+    }
+
+    private String answerDiseaseToPlantQuestion(String question, Map<String, List<String>> extractedEntities) {
+        if (!isDiseaseToPlantQuestion(question)) {
+            return null;
+        }
+
+        List<String> healthTerms = extractHealthTerms(question, extractedEntities);
+        if (healthTerms.isEmpty()) {
+            return null;
+        }
+
+        LinkedHashMap<Long, PlantMatchCandidate> candidates = new LinkedHashMap<>();
+        LinkedHashSet<String> matchedTerms = new LinkedHashSet<>();
+
+        for (String term : healthTerms) {
+            int matchedCountBefore = matchedTerms.size();
+            int candidateCountBefore = candidates.size();
+
+            List<String> keywords = expandHealthSearchKeywords(term);
+            if (!keywords.isEmpty()) {
+                searchPlantsByHealthKeyword(candidates, matchedTerms, term, keywords.get(0));
+                if (candidates.size() == candidateCountBefore && matchedTerms.size() == matchedCountBefore) {
+                    keywords.stream()
+                            .skip(1)
+                            .forEach(keyword -> searchPlantsByHealthKeyword(candidates, matchedTerms, term, keyword));
+                }
+            }
+            if (matchedTerms.size() == matchedCountBefore) {
+                matchedTerms.add(term);
+            }
+        }
+
+        if (candidates.isEmpty()) {
+            return NO_DATA_RESPONSE;
+        }
+
+        List<PlantMatchCandidate> rankedPlants = candidates.values().stream()
+                .sorted((a, b) -> {
+                    int textMatchCompare = Integer.compare(
+                            countPlantTextMatches(b.plant, healthTerms),
+                            countPlantTextMatches(a.plant, healthTerms));
+                    if (textMatchCompare != 0) return textMatchCompare;
+                    int termCompare = Integer.compare(b.matchedTerms.size(), a.matchedTerms.size());
+                    if (termCompare != 0) return termCompare;
+                    int scoreCompare = Integer.compare(b.score, a.score);
+                    if (scoreCompare != 0) return scoreCompare;
+                    return a.plant.getName().compareToIgnoreCase(b.plant.getName());
+                })
+                .limit(3)
+                .collect(Collectors.toList());
+
+        String subject = matchedTerms.stream()
+                .filter(term -> term != null && !term.isBlank())
+                .map(this::toHealthDisplayText)
+                .limit(3)
+                .collect(Collectors.joining(", "));
+        if (subject.isBlank()) {
+            subject = String.join(", ", healthTerms);
+        }
+
+        StringBuilder result = new StringBuilder();
+        result.append("Các cây dược liệu trong cơ sở dữ liệu có liên quan đến ")
+                .append(subject)
+                .append(":\n");
+
+        rankedPlants.forEach(candidate -> {
+            Plant plant = candidate.plant;
+            result.append("- ").append(plant.getName());
+            String note = firstNonBlank(plant.getIndications(), plant.getMedicinalUses());
+            if (note != null && !note.isBlank()) {
+                result.append(": ").append(summarizeText(note, 180));
+            }
+            result.append("\n");
+        });
+
+        result.append("\nLưu ý: thông tin chỉ mang tính tham khảo từ dữ liệu của hệ thống, không thay thế tư vấn của bác sĩ.\n\n");
+        rankedPlants.stream()
+                .map(candidate -> candidate.plant)
+                .filter(plant -> plant.getSlug() != null && !plant.getSlug().isBlank())
+                .limit(3)
+                .forEach(plant -> result.append("Nguồn: [")
+                        .append(plant.getName())
+                        .append("](/plant-detail/")
+                        .append(plant.getSlug())
+                        .append(")\n"));
+
+        String fallback = result.toString().trim();
+        String structuredContext = buildDiseaseToPlantGroundedContext(subject, rankedPlants);
+        List<String> requiredTerms = rankedPlants.stream()
+                .map(candidate -> candidate.plant.getName())
+                .filter(name -> name != null && !name.isBlank())
+                .collect(Collectors.toList());
+        return generateGroundedStructuredAnswer(question, structuredContext, requiredTerms, fallback);
+    }
+
+    private String answerPlantToDiseaseQuestion(String question, Map<String, List<String>> extractedEntities) {
+        if (!isPlantToDiseaseQuestion(question, extractedEntities)) {
+            return null;
+        }
+
+        List<Plant> plants = findPlantsForPlantToDiseaseQuestion(question, extractedEntities);
+        if (plants.isEmpty()) {
+            return NO_DATA_RESPONSE;
+        }
+
+        LinkedHashMap<String, String> diseases = new LinkedHashMap<>();
+        for (Plant plant : plants) {
+            String keyword = plant.getName();
+            if (keyword == null || keyword.isBlank()) continue;
+            for (PlantDiseases relation : plantDiseasesRepository.findPublishedDiseasesByPlantKeyword(keyword)) {
+                if (relation.getDiseases() == null || relation.getDiseases().getName() == null) continue;
+                diseases.putIfAbsent(relation.getDiseases().getName(), relation.getDiseases().getSlug());
+            }
+            if (!diseases.isEmpty()) break;
+        }
+
+        if (diseases.isEmpty()) {
+            return NO_DATA_RESPONSE;
+        }
+
+        Plant mainPlant = plants.get(0);
+        StringBuilder result = new StringBuilder();
+        result.append(mainPlant.getName())
+                .append(" có liên quan/hỗ trợ các bệnh hoặc vấn đề sức khỏe sau trong cơ sở dữ liệu:\n");
+        diseases.keySet().stream()
+                .limit(8)
+                .forEach(name -> result.append("- ").append(name).append("\n"));
+
+        if (mainPlant.getSlug() != null && !mainPlant.getSlug().isBlank()) {
+            result.append("\nNguồn: [")
+                    .append(mainPlant.getName())
+                    .append("](/plant-detail/")
+                    .append(mainPlant.getSlug())
+                    .append(")");
+        }
+
+        String fallback = result.toString().trim();
+        String structuredContext = buildPlantToDiseaseGroundedContext(mainPlant, diseases.keySet());
+        List<String> requiredTerms = new ArrayList<>();
+        requiredTerms.add(mainPlant.getName());
+        diseases.keySet().stream().limit(3).forEach(requiredTerms::add);
+        return generateGroundedStructuredAnswer(question, structuredContext, requiredTerms, fallback);
+    }
+
+    private String buildDiseaseToPlantGroundedContext(String subject, List<PlantMatchCandidate> rankedPlants) {
+        StringBuilder context = new StringBuilder();
+        context.append("Luồng: bệnh/triệu chứng -> cây dược liệu\n");
+        context.append("Vấn đề sức khỏe người dùng hỏi: ").append(subject).append("\n");
+        context.append("Dữ liệu đã truy xuất từ cơ sở dữ liệu, chỉ được dùng các cây sau:\n");
+        for (PlantMatchCandidate candidate : rankedPlants) {
+            Plant plant = candidate.plant;
+            context.append("- Tên cây: ").append(plant.getName()).append("\n");
+            context.append("  Chỉ định/công dụng trong DB: ")
+                    .append(summarizeText(firstNonBlank(plant.getIndications(), plant.getMedicinalUses()), 260))
+                    .append("\n");
+            if (plant.getSlug() != null && !plant.getSlug().isBlank()) {
+                context.append("  Link nguồn: /plant-detail/").append(plant.getSlug()).append("\n");
+            }
+        }
+        return context.toString();
+    }
+
+    private String buildPlantToDiseaseGroundedContext(Plant plant, Collection<String> diseases) {
+        StringBuilder context = new StringBuilder();
+        context.append("Luồng: cây dược liệu -> bệnh/vấn đề sức khỏe\n");
+        context.append("Cây người dùng hỏi: ").append(plant.getName()).append("\n");
+        context.append("Các bệnh/vấn đề sức khỏe liên quan đã truy xuất từ cơ sở dữ liệu:\n");
+        diseases.stream().limit(8).forEach(disease -> context.append("- ").append(disease).append("\n"));
+        if (plant.getSlug() != null && !plant.getSlug().isBlank()) {
+            context.append("Link nguồn: /plant-detail/").append(plant.getSlug()).append("\n");
+        }
+        return context.toString();
+    }
+
+    private String generateGroundedStructuredAnswer(String question, String groundedContext,
+            List<String> requiredTerms, String fallback) {
+        String answerContext = removeGroundedSourceLines(groundedContext);
+        String prompt = """
+                Bạn là trợ lý tra cứu cây dược liệu. Hãy trả lời tự nhiên bằng tiếng Việt, nhưng CHỈ được dùng dữ liệu trong CONTEXT.
+
+                QUY TẮC BẮT BUỘC:
+                - Không thêm cây, bệnh, công dụng, liều dùng, chống chỉ định hoặc tác dụng phụ ngoài CONTEXT.
+                - Không suy diễn kiến thức ngoài cơ sở dữ liệu.
+                - Nếu CONTEXT có danh sách cây, phải giữ đúng các cây trong danh sách và không thêm cây khác.
+                - Nếu CONTEXT có danh sách bệnh, phải giữ đúng các bệnh trong danh sách và không thêm bệnh khác.
+                - Không tự tạo nguồn; nếu có link nguồn trong CONTEXT thì có thể dùng đúng link đó.
+                - Luôn nhắc thông tin chỉ mang tính tham khảo, không thay thế tư vấn của bác sĩ.
+
+                - Tuyệt đối không viết link, đường dẫn hoặc dòng "Tham khảo thêm tại" trong câu trả lời.
+
+                CONTEXT:
+                %s
+
+                CÂU HỎI:
+                %s
+                """.formatted(
+                answerContext == null ? "" : answerContext.replace("%", "%%"),
+                question == null ? "" : question.replace("%", "%%"));
+
+        String generated = "";
+        if (cloudflareAIService.isAvailable()) {
+            try {
+                generated = cleanResponse(cloudflareAIService.chat(prompt));
+                if (isGroundedStructuredAnswerValid(generated, requiredTerms)) {
+                    return appendGroundedSources(generated, groundedContext);
+                }
+            } catch (Exception e) {
+                log.warn("Grounded structured Cloudflare generate lỗi: {}", e.getMessage());
+            }
+        }
+
+        try {
+            generated = cleanResponse(callGeminiWithRetry(prompt));
+            if (isGroundedStructuredAnswerValid(generated, requiredTerms)) {
+                return appendGroundedSources(generated, groundedContext);
+            }
+        } catch (Exception e) {
+            log.warn("Grounded structured Gemini generate lỗi: {}", e.getMessage());
+        }
+
+        return fallback;
+    }
+
+    private String removeGroundedSourceLines(String groundedContext) {
+        if (groundedContext == null || groundedContext.isBlank()) return "";
+        return Arrays.stream(groundedContext.split("\\R"))
+                .filter(line -> !normalizeSearchText(line).contains("link nguon"))
+                .collect(Collectors.joining("\n"));
+    }
+
+    private String appendGroundedSources(String answer, String groundedContext) {
+        String cleanedAnswer = stripInlineSourceLines(answer);
+        LinkedHashMap<String, String> sources = extractGroundedSources(groundedContext);
+        if (sources.isEmpty()) return cleanedAnswer.trim();
+
+        StringBuilder result = new StringBuilder(cleanedAnswer.trim());
+        result.append("\n\n");
+        sources.forEach((name, link) -> result.append("Nguồn: [")
+                .append(name)
+                .append("](")
+                .append(link)
+                .append(")\n"));
+        return result.toString().trim();
+    }
+
+    private String stripInlineSourceLines(String answer) {
+        if (answer == null || answer.isBlank()) return "";
+        return Arrays.stream(answer.split("\\R"))
+                .filter(line -> {
+                    String normalized = normalizeSearchText(line);
+                    return !normalized.contains("tham khao them tai")
+                            && !normalized.contains("link nguon")
+                            && !normalized.matches(".*\\/plant-detail\\/[^\\s)]+.*");
+                })
+                .collect(Collectors.joining("\n"))
+                .trim();
+    }
+
+    private LinkedHashMap<String, String> extractGroundedSources(String groundedContext) {
+        LinkedHashMap<String, String> sources = new LinkedHashMap<>();
+        if (groundedContext == null || groundedContext.isBlank()) return sources;
+
+        String currentName = "";
+        Pattern linkPattern = Pattern.compile("(/plant-detail/[^\\s)]+)");
+        for (String line : groundedContext.split("\\R")) {
+            String normalizedLine = normalizeSearchText(line);
+            int colonIndex = line.indexOf(':');
+            if (colonIndex >= 0 && (normalizedLine.contains("ten cay") || normalizedLine.contains("cay nguoi dung hoi"))) {
+                currentName = line.substring(colonIndex + 1).trim();
+                continue;
+            }
+
+            Matcher matcher = linkPattern.matcher(line);
+            if (matcher.find()) {
+                String link = matcher.group(1);
+                String sourceName = currentName.isBlank() ? link.substring(link.lastIndexOf('/') + 1) : currentName;
+                sources.putIfAbsent(sourceName, link);
+            }
+        }
+        return sources;
+    }
+
+    private boolean isGroundedStructuredAnswerValid(String answer, List<String> requiredTerms) {
+        if (answer == null || answer.isBlank()) return false;
+        String normalizedAnswer = normalizeSearchText(answer);
+        if (normalizedAnswer.contains("khong tim thay")
+                || normalizedAnswer.contains("chua co thong tin")
+                || normalizedAnswer.contains("khong co du lieu")) {
+            return false;
+        }
+        if (requiredTerms == null) return true;
+        for (String term : requiredTerms) {
+            String normalizedTerm = normalizeSearchText(term);
+            if (normalizedTerm.isBlank()) continue;
+            if (!normalizedAnswer.contains(normalizedTerm)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String answerPlantAttributeQuestion(String question, Map<String, List<String>> extractedEntities) {
+        String normalized = normalizeSearchText(question == null ? "" : question);
+        if (normalized.isBlank() || !isPlantAttributeQuestion(normalized)) {
+            return null;
+        }
+
+        List<Plant> plants = findPlantsForAttributeQuestion(question, extractedEntities);
+        if (plants.isEmpty()) {
+            return null;
+        }
+
+        Plant plant = plants.get(0);
+        if (plant.getPlantStatus() != PlantStatus.DA_XUAT_BAN) {
+            return NO_DATA_RESPONSE;
+        }
+
+        String response;
+        if (isContraindicationQuestion(normalized)) {
+            response = buildSinglePlantFieldAnswer(plant,
+                    "Theo dữ liệu hiện có, " + plant.getName() + " không nên dùng hoặc cần thận trọng trong các trường hợp: ",
+                    plant.getContraindications());
+        } else if (isSideEffectQuestion(normalized)) {
+            response = buildSinglePlantFieldAnswer(plant,
+                    "Theo dữ liệu hiện có, tác dụng phụ của " + plant.getName() + ": ",
+                    plant.getSideEffects());
+        } else if (isUsageQuestion(normalized)) {
+            response = buildSinglePlantFieldAnswer(plant,
+                    "Theo dữ liệu hiện có, cách dùng/liều lượng của " + plant.getName() + ": ",
+                    plant.getDosage());
+        } else {
+            response = buildPlantInfoAnswer(plant, normalized);
+        }
+
+        if (response == null || response.isBlank()) {
+            return NO_DATA_RESPONSE;
+        }
+        return response;
+    }
+
+    private boolean isPlantAttributeQuestion(String normalized) {
+        return isUsageQuestion(normalized)
+                || isSideEffectQuestion(normalized)
+                || isContraindicationQuestion(normalized);
+    }
+
+    private boolean isUsageQuestion(String normalized) {
+        return normalized.matches(".*\\b(cach dung|cach su dung|su dung|lieu luong|lieu dung|uong nhu the nao|dung nhu the nao|uong bao nhieu|dung bao nhieu)\\b.*")
+                || normalized.matches(".*\\b(uong|dung)\\b.*\\b(ra sao|nhu the nao|bao nhieu|lieu)\\b.*");
+    }
+
+    private boolean isSideEffectQuestion(String normalized) {
+        return normalized.matches(".*\\b(tac dung phu|tac dung khong mong muon|rui ro|dung lau|su dung lau)\\b.*");
+    }
+
+    private boolean isContraindicationQuestion(String normalized) {
+        return normalized.matches(".*\\b(chong chi dinh|ai khong nen|khong nen dung|doi tuong khong nen|can than trong|than trong)\\b.*");
+    }
+
+    private List<Plant> findPlantsForAttributeQuestion(String question, Map<String, List<String>> extractedEntities) {
+        LinkedHashMap<Long, Plant> plants = new LinkedHashMap<>();
+        extractedEntities.getOrDefault("plants", Collections.emptyList()).stream()
+                .filter(name -> name != null && !name.isBlank())
+                .forEach(name -> addPlantMatches(plants, name));
+        extractPlantNamePhrase(question).ifPresent(name -> addPlantMatches(plants, name));
+        extractLoosePlantKeyword(question).ifPresent(name -> addPlantMatches(plants, name));
+        return new ArrayList<>(plants.values());
+    }
+
+    private Optional<String> extractLoosePlantKeyword(String question) {
+        String normalized = normalizeSearchText(question == null ? "" : question);
+        if (normalized.isBlank()) return Optional.empty();
+        String cleaned = normalized
+                .replaceAll("\\b(cho toi biet|thong tin ve|ve cay|cay|cong dung|tac dung|thanh phan|dac diem|ten khoa hoc|bo phan|mo ta|la cay gi)\\b", " ")
+                .replaceAll("\\b(cach dung|cach su dung|su dung|lieu luong|lieu dung|uong nhu the nao|dung nhu the nao|uong bao nhieu|dung bao nhieu|uong|dung|ra sao|nhu the nao)\\b", " ")
+                .replaceAll("\\b(tac dung phu|tac dung khong mong muon|rui ro|dung lau|su dung lau|chong chi dinh|ai khong nen|khong nen dung|doi tuong khong nen|can than trong|than trong|co|khong|ai)\\b", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        if (cleaned.length() < 2 || cleaned.split("\\s+").length > 4) {
+            return Optional.empty();
+        }
+        return Optional.of(cleaned);
+    }
+
+    private String buildSinglePlantFieldAnswer(Plant plant, String prefix, String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        StringBuilder result = new StringBuilder();
+        result.append(prefix).append(summarizeText(value, 260));
+        appendPlantSource(result, plant);
+        return result.toString().trim();
+    }
+
+    private String buildPlantInfoAnswer(Plant plant, String normalizedQuestion) {
+        if (normalizedQuestion.contains("ten khoa hoc")) {
+            return buildSinglePlantFieldAnswer(plant, "Tên khoa học của " + plant.getName() + " là ", plant.getScientificName());
+        }
+        if (normalizedQuestion.contains("bo phan")) {
+            return buildSinglePlantFieldAnswer(plant, "Bộ phận dùng của " + plant.getName() + ": ", plant.getPartsUsed());
+        }
+        if (normalizedQuestion.contains("thanh phan")) {
+            return buildSinglePlantFieldAnswer(plant, "Thành phần hóa học của " + plant.getName() + ": ", plant.getChemicalComposition());
+        }
+        if (normalizedQuestion.contains("dac diem") || normalizedQuestion.contains("mo ta")) {
+            return buildSinglePlantFieldAnswer(plant, "Đặc điểm của " + plant.getName() + ": ",
+                    firstNonBlank(plant.getBotanicalCharacteristics(), plant.getDescription()));
+        }
+        if (normalizedQuestion.contains("cong dung") || normalizedQuestion.contains("tac dung")) {
+            return buildSinglePlantFieldAnswer(plant, "Công dụng của " + plant.getName() + ": ",
+                    firstNonBlank(plant.getMedicinalUses(), plant.getIndications()));
+        }
+
+        StringBuilder result = new StringBuilder();
+        result.append(plant.getName());
+        if (plant.getScientificName() != null && !plant.getScientificName().isBlank()) {
+            result.append(" (").append(plant.getScientificName()).append(")");
+        }
+        String description = summarizeText(plant.getDescription(), 220);
+        if (!description.isBlank()) {
+            result.append(": ").append(description);
+        }
+        if (plant.getPartsUsed() != null && !plant.getPartsUsed().isBlank()) {
+            result.append("\nBộ phận dùng: ").append(summarizeText(plant.getPartsUsed(), 120));
+        }
+        if (plant.getMedicinalUses() != null && !plant.getMedicinalUses().isBlank()) {
+            result.append("\nCông dụng: ").append(summarizeText(plant.getMedicinalUses(), 160));
+        }
+        appendPlantSource(result, plant);
+        return result.toString().trim();
+    }
+
+    private void appendPlantSource(StringBuilder result, Plant plant) {
+        if (plant.getSlug() == null || plant.getSlug().isBlank()) return;
+        result.append("\n\nNguồn: [")
+                .append(plant.getName())
+                .append("](/plant-detail/")
+                .append(plant.getSlug())
+                .append(")");
+    }
+
+    private String answerFolkRemedyQuestion(String question, Map<String, List<String>> extractedEntities) {
+        String normalized = normalizeSearchText(question == null ? "" : question);
+        if (!normalized.contains("bai thuoc") && !normalized.contains("thuoc dan gian")) {
+            return null;
+        }
+
+        LinkedHashSet<String> keywords = new LinkedHashSet<>();
+        extractDisplayDiseasePhrase(question).ifPresent(keywords::add);
+        extractDiseasePhrase(normalized).ifPresent(keywords::add);
+        extractedEntities.getOrDefault("diseases", Collections.emptyList()).forEach(keywords::add);
+        if (keywords.isEmpty()) {
+            String cleaned = cleanHealthKeyword(normalized
+                    .replace("bai thuoc dan gian", " ")
+                    .replace("bai thuoc", " ")
+                    .replace("thuoc dan gian", " "));
+            if (!cleaned.isBlank()) keywords.add(cleaned);
+        }
+
+        LinkedHashMap<Long, FolkRemedy> remedies = new LinkedHashMap<>();
+        for (String keyword : keywords) {
+            String clean = cleanHealthKeyword(keyword);
+            if (clean.isBlank()) continue;
+            for (FolkRemedy remedy : folkRemedyRepository.findApprovedByKeyword(clean)) {
+                if (remedy.getId() != null) remedies.putIfAbsent(remedy.getId(), remedy);
+                if (remedies.size() >= 3) break;
+            }
+            if (remedies.isEmpty()) {
+                addFolkRemedyFallbackMatches(remedies, clean);
+            }
+            if (remedies.size() >= 3) break;
+        }
+
+        if (remedies.isEmpty()) {
+            return NO_DATA_RESPONSE;
+        }
+
+        StringBuilder result = new StringBuilder();
+        result.append("Các bài thuốc dân gian phù hợp trong cơ sở dữ liệu:\n");
+        remedies.values().stream().limit(3).forEach(remedy -> {
+            result.append("- ").append(remedy.getName());
+            String note = firstNonBlank(remedy.getDescription(), remedy.getUsageInstruction());
+            if (note != null && !note.isBlank()) {
+                result.append(": ").append(summarizeText(note, 180));
+            }
+            result.append("\n");
+        });
+        result.append("\n");
+        remedies.values().stream().limit(3).forEach(remedy ->
+                result.append("Nguồn: [").append(remedy.getName()).append("](/folk-remedies/")
+                        .append(remedy.getId()).append(")\n"));
+        return result.toString().trim();
+    }
+
+    private void addFolkRemedyFallbackMatches(Map<Long, FolkRemedy> target, String keyword) {
+        String normalizedKeyword = normalizeSearchText(keyword);
+        if (normalizedKeyword.isBlank()) return;
+        for (FolkRemedy remedy : folkRemedyRepository.findAllApproved()) {
+            String searchable = normalizeSearchText(remedy.getName() + " "
+                    + nullToEmpty(remedy.getDescription()) + " "
+                    + nullToEmpty(remedy.getUsageInstruction()) + " "
+                    + remedy.getDiseases().stream()
+                            .map(disease -> disease == null ? "" : disease.getName())
+                            .collect(Collectors.joining(" ")));
+            if (!searchable.contains(normalizedKeyword)) continue;
+            if (remedy.getId() != null) target.putIfAbsent(remedy.getId(), remedy);
+            if (target.size() >= 3) break;
+        }
+    }
+
+    private String answerResearchQuestion(String question, Map<String, List<String>> extractedEntities) {
+        String normalized = normalizeSearchText(question == null ? "" : question);
+        if (!normalized.contains("nghien cuu")
+                && !normalized.contains("khoa hoc")
+                && !normalized.contains("bang chung")) {
+            return null;
+        }
+
+        LinkedHashSet<String> keywords = new LinkedHashSet<>();
+        extractedEntities.getOrDefault("plants", Collections.emptyList()).forEach(keywords::add);
+        extractedEntities.getOrDefault("diseases", Collections.emptyList()).forEach(keywords::add);
+        extractPlantNamePhrase(question).ifPresent(keywords::add);
+        keywords.removeIf(this::isGenericResearchKeyword);
+        if (keywords.isEmpty()) {
+            String cleaned = cleanHealthKeyword(normalized
+                    .replace("nghien cuu", " ")
+                    .replace("khoa hoc", " ")
+                    .replace("bang chung", " "));
+            if (!cleaned.isBlank() && !isGenericResearchKeyword(cleaned)) keywords.add(cleaned);
+        }
+
+        LinkedHashMap<Long, Research> researches = new LinkedHashMap<>();
+        if (keywords.isEmpty()) {
+            researchRepository.findAllPublicByParam(null, null, null, PageRequest.of(0, 3))
+                    .forEach(research -> researches.putIfAbsent(research.getId(), research));
+        } else {
+            for (String keyword : keywords) {
+                String clean = cleanHealthKeyword(keyword);
+                if (clean.isBlank()) continue;
+                researchRepository.findAllPublicByParam(clean, null, null, PageRequest.of(0, 3))
+                        .forEach(research -> researches.putIfAbsent(research.getId(), research));
+                if (researches.size() >= 3) break;
+            }
+        }
+
+        if (researches.isEmpty()) {
+            return NO_DATA_RESPONSE;
+        }
+
+        StringBuilder result = new StringBuilder();
+        result.append("Các nghiên cứu phù hợp trong cơ sở dữ liệu:\n");
+        researches.values().stream().limit(3).forEach(research -> {
+            result.append("- ").append(research.getTitle());
+            if (research.getPublishedYear() != null) {
+                result.append(" (").append(research.getPublishedYear()).append(")");
+            }
+            String note = summarizeText(firstNonBlank(research.getAbstractText(), research.getContent()), 180);
+            if (!note.isBlank()) {
+                result.append(": ").append(note);
+            }
+            result.append("\n");
+        });
+        result.append("\n");
+        researches.values().stream()
+                .filter(research -> research.getSlug() != null && !research.getSlug().isBlank())
+                .limit(3)
+                .forEach(research -> result.append("Nguồn: [")
+                        .append(research.getTitle())
+                        .append("](/research-detail/")
+                        .append(research.getSlug())
+                        .append(")\n"));
+        return result.toString().trim();
+    }
+
+    private boolean isGenericResearchKeyword(String keyword) {
+        String normalized = cleanHealthKeyword(keyword);
+        return normalized.isBlank()
+                || normalized.equals("cay")
+                || normalized.equals("duoc lieu")
+                || normalized.equals("cay duoc lieu")
+                || normalized.equals("thao duoc")
+                || normalized.equals("y hoc co truyen");
+    }
+
+    private boolean isOutOfScopeQuestion(String question) {
+        String normalized = normalizeSearchText(question == null ? "" : question);
+        if (normalized.isBlank()) return false;
+        return normalized.matches(".*\\b(thoi tiet|bong da|chung khoan|gia vang|bitcoin|lap trinh|python|java|phim|game|du lich|ve may bay|khach san|chinh tri)\\b.*");
+    }
+
+    private boolean isPlantToDiseaseQuestion(String question, Map<String, List<String>> extractedEntities) {
+        String normalized = normalizeSearchText(question == null ? "" : question);
+        if (normalized.isBlank()) return false;
+        boolean asksForDisease = normalized.matches(".*\\b(benh gi|benh nao|chua benh gi|tri benh gi|ho tro benh nao|ho tro benh gi|tot cho benh nao|co tac dung voi benh nao|dung cho benh gi)\\b.*");
+        if (!asksForDisease) return false;
+        return !extractedEntities.getOrDefault("plants", Collections.emptyList()).isEmpty()
+                || extractPlantNamePhrase(question).isPresent();
+    }
+
+    private List<Plant> findPlantsForPlantToDiseaseQuestion(String question,
+            Map<String, List<String>> extractedEntities) {
+        LinkedHashMap<Long, Plant> plants = new LinkedHashMap<>();
+        extractedEntities.getOrDefault("plants", Collections.emptyList()).stream()
+                .filter(name -> name != null && !name.isBlank())
+                .forEach(name -> addPlantMatches(plants, name));
+        extractPlantNamePhrase(question).ifPresent(name -> addPlantMatches(plants, name));
+        return new ArrayList<>(plants.values());
+    }
+
+    private Optional<String> extractPlantNamePhrase(String question) {
+        if (question == null || question.isBlank()) return Optional.empty();
+        List<Pattern> patterns = List.of(
+                Pattern.compile("\\bcây\\s+(.+?)(?:\\s+(?:chữa|trị|hỗ trợ|tốt cho|dùng cho|có tác dụng|liên quan)|[?.!,]|$)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE),
+                Pattern.compile("^(.+?)\\s+(?:chữa|trị|hỗ trợ|tốt cho|dùng cho|có tác dụng)\\s+bệnh", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE)
+        );
+        for (Pattern pattern : patterns) {
+            Matcher matcher = pattern.matcher(question);
+            if (matcher.find()) {
+                String name = cleanPlantDisplayName(matcher.group(1));
+                if (!name.isBlank()) return Optional.of(name);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private void addPlantMatches(Map<Long, Plant> target, String name) {
+        String keyword = cleanPlantKeyword(name);
+        if (keyword.isBlank()) return;
+        addPublishedPlants(target, plantRepository.findByNameContainingIgnoreCase(keyword));
+        addPublishedPlants(target, plantRepository.findByScientificNameContainingIgnoreCase(keyword));
+        addPublishedPlants(target, plantRepository.findByOtherNamesContainingIgnoreCase(keyword));
+    }
+
+    private String cleanPlantDisplayName(String value) {
+        if (value == null) return "";
+        return value.replaceAll("(?iu)\\b(cây|dược liệu|này|đó|nào|gì|có|thể|là)\\b", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+    }
+
+    private String cleanPlantKeyword(String value) {
+        if (value == null) return "";
+        return normalizeSearchText(value)
+                .replaceAll("\\b(cay|duoc lieu|nay|do|nao|gi|co|the|la)\\b", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+    }
+
+    private boolean isDiseaseToPlantQuestion(String question) {
+        String normalized = normalizeSearchText(question == null ? "" : question);
+        if (normalized.isBlank()) return false;
+        boolean asksForPlant = normalized.matches(".*\\b(cay nao|cay gi|cay thuoc nao|loai cay nao|cay duoc lieu nao|dung cay gi|dung gi|uong gi|nen dung|nen uong|chua bang cay|tri bang cay|ho tro bang cay)\\b.*");
+        boolean hasHealthSignal = normalized.matches(".*\\b(benh|bi|dau|viem|ho|mat ngu|kho ngu|tieu duong|huyet ap|gan|than|da day|bao tu|tieu hoa|mun|ngua|cam|sot)\\b.*")
+                || extractDiseasePhrase(normalized).isPresent();
+        return asksForPlant && hasHealthSignal;
+    }
+
+    private List<String> extractHealthTerms(String question, Map<String, List<String>> extractedEntities) {
+        LinkedHashMap<String, String> terms = new LinkedHashMap<>();
+        extractDelimitedSymptoms(question).forEach(term -> addHealthTerm(terms, term));
+
+        extractDisplayDiseasePhrase(question)
+                .map(this::splitHealthTerms)
+                .ifPresent(values -> values.forEach(term -> addHealthTerm(terms, term)));
+
+        if (terms.isEmpty()) {
+            String normalized = normalizeSearchText(question);
+            extractDiseasePhrase(normalized)
+                    .map(this::splitHealthTerms)
+                    .ifPresent(values -> values.forEach(term -> addHealthTerm(terms, term)));
+        }
+
+        if (terms.isEmpty()) {
+            extractLooseHealthPhrase(question)
+                    .map(this::splitHealthTerms)
+                    .ifPresent(values -> values.forEach(term -> addHealthTerm(terms, term)));
+        }
+
+        if (terms.isEmpty()) {
+            extractedEntities.getOrDefault("diseases", Collections.emptyList()).stream()
+                    .map(this::cleanHealthKeyword)
+                    .filter(term -> !term.isBlank())
+                    .flatMap(term -> splitHealthTerms(term).stream())
+                    .forEach(term -> addHealthTerm(terms, term));
+        }
+        return new ArrayList<>(terms.values()).stream()
+                .filter(term -> term != null && !term.isBlank())
+                .limit(3)
+                .collect(Collectors.toList());
+    }
+
+    private List<String> extractDelimitedSymptoms(String question) {
+        if (question == null || question.isBlank()) return Collections.emptyList();
+        if (!question.contains(",") && !question.contains(";")) return Collections.emptyList();
+        String normalized = normalizeSearchText(question);
+        if (!normalized.matches(".*\\b(bi|toi bi|nguoi bi)\\b.*")) return Collections.emptyList();
+        String normalizedSymptoms = normalized.replaceFirst("^.*\\bbi\\s+", "")
+                .replaceFirst("\\s+(?:co the\\s+)?(?:dung|uong|nen dung|nen uong|chua|tri|ho tro|bang).*$", "")
+                .trim();
+        if (!normalizedSymptoms.isBlank()) {
+            return splitHealthTerms(normalizedSymptoms);
+        }
+
+        String symptoms = question.replaceFirst("(?iu)^.*\\bbị\\s+", "")
+                .replaceFirst("(?iu)\\s+(?:có thể\\s+)?(?:dùng|uống|nên dùng|nên uống|chữa|trị|hỗ trợ|bằng).*$", "")
+                .trim();
+        return splitHealthTerms(symptoms);
+    }
+
+    private void addHealthTerm(Map<String, String> terms, String term) {
+        String cleaned = cleanDisplayHealthKeyword(term);
+        if (cleaned.isBlank()) cleaned = cleanHealthKeyword(term);
+        String key = normalizeSearchText(cleaned);
+        if (key.isBlank()) return;
+        terms.putIfAbsent(key, cleaned);
+    }
+
+    private List<String> splitHealthTerms(String value) {
+        if (value == null || value.isBlank()) return Collections.emptyList();
+        if (System.nanoTime() >= 0) {
+            String normalized = cleanHealthKeyword(value);
+            if (normalized.isBlank()) return Collections.emptyList();
+            return Arrays.stream(normalized.split("\\s*(?:,|;|\\+|/|\\bva\\b|\\bkem\\b|\\bvoi\\b|\\bdong thoi\\b)\\s*"))
+                    .map(this::cleanHealthKeyword)
+                    .filter(term -> !term.isBlank())
+                    .filter(term -> normalizeSearchText(term).length() >= 3 || normalizeSearchText(term).equals("ho"))
+                    .distinct()
+                    .limit(3)
+                    .collect(Collectors.toList());
+        }
+        String cleaned = cleanDisplayHealthKeyword(value);
+        if (cleaned.isBlank()) cleaned = cleanHealthKeyword(value);
+        return Arrays.stream(cleaned.split("(?iu)\\s*(?:,|;|\\+|/|\\bvà\\b|\\bkèm\\b|\\bkem\\b|\\bvoi\\b|\\bvới\\b|\\bdong thoi\\b|\\bđồng thời\\b)\\s*"))
+                .map(this::cleanDisplayHealthKeyword)
+                .map(term -> term.isBlank() ? "" : term)
+                .filter(term -> !term.isBlank())
+                .filter(term -> normalizeSearchText(term).length() >= 3)
+                .distinct()
+                .limit(3)
+                .collect(Collectors.toList());
+    }
+
+    private Optional<String> extractDisplayDiseasePhrase(String question) {
+        if (question == null || question.isBlank()) return Optional.empty();
+        List<Pattern> patterns = List.of(
+                Pattern.compile("\\bbệnh\\s+(.+?)(?:\\s+(?:dùng|uống|nên|chữa|trị|hỗ trợ|bằng|thiếu|cần)|[?.!,]|$)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE),
+                Pattern.compile("\\bbị\\s+(.+?)(?:\\s+(?:dùng|uống|nên|chữa|trị|hỗ trợ|bằng)|[?.!,]|$)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE),
+                Pattern.compile("\\b(?:chữa|trị|hỗ trợ)\\s+(.+?)(?:\\s+(?:bằng|với|được|nên|không)|[?.!,]|$)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE),
+                Pattern.compile("\\b(?:tốt cho|phù hợp với|liên quan đến)\\s+(.+?)(?:\\s+(?:không|là|nên)|[?.!,]|$)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE)
+        );
+        for (Pattern pattern : patterns) {
+            Matcher matcher = pattern.matcher(question);
+            if (matcher.find()) {
+                String term = cleanDisplayHealthKeyword(matcher.group(1));
+                if (!term.isBlank()) return Optional.of(term);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Optional<String> extractDiseasePhrase(String normalizedQuestion) {
+        List<Pattern> patterns = List.of(
+                Pattern.compile("\\bbenh\\s+(.+?)(?:\\s+(?:thi|dung|uong|nen|chua|tri|ho tro|bang|thieu|can)|[?.!,]|$)"),
+                Pattern.compile("\\bbi\\s+(.+?)(?:\\s+(?:thi|dung|uong|nen|chua|tri|ho tro|bang)|[?.!,]|$)"),
+                Pattern.compile("\\b(?:chua|tri|ho tro)\\s+(.+?)(?:\\s+(?:bang|voi|duoc|nen|khong)|[?.!,]|$)"),
+                Pattern.compile("\\b(?:tot cho|phu hop voi|lien quan den)\\s+(.+?)(?:\\s+(?:khong|la|nen)|[?.!,]|$)")
+        );
+        for (Pattern pattern : patterns) {
+            Matcher matcher = pattern.matcher(normalizedQuestion);
+            if (matcher.find()) {
+                String term = cleanHealthKeyword(matcher.group(1));
+                if (!term.isBlank()) return Optional.of(term);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Optional<String> extractLooseHealthPhrase(String question) {
+        String normalized = normalizeSearchText(question == null ? "" : question);
+        if (normalized.isBlank()) return Optional.empty();
+        if (!normalized.matches(".*\\b(cay nao|cay gi|cay thuoc nao|loai cay nao|cay duoc lieu nao|dung cay gi|dung gi|uong gi|nen dung|nen uong)\\b.*")) {
+            return Optional.empty();
+        }
+
+        String beforeAction = normalized
+                .replaceFirst("\\b(?:thi\\s+)?(?:co the\\s+)?(?:nen dung|nen uong|dung cay gi|dung gi|uong gi|cay thuoc nao|loai cay nao|cay duoc lieu nao|cay nao|cay gi).*$", " ");
+        String cleaned = cleanHealthKeyword(beforeAction
+                .replaceAll("\\b(toi|minh|em|hay|thuong|dang|nguoi|co|trieu chung|van de|suc khoe)\\b", " "));
+        return cleaned.isBlank() ? Optional.empty() : Optional.of(cleaned);
+    }
+
+    private String cleanHealthKeyword(String value) {
+        if (value == null) return "";
+        return normalizeSearchText(value)
+                .replaceAll("\\b(cay|thuoc|duoc lieu|nao|gi|co|the|la|thi|khong|dung|uong|nen|chua|tri|ho tro|bang|cho|toi|nguoi|benh|bi)\\b", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+    }
+
+    private String cleanDisplayHealthKeyword(String value) {
+        if (value == null) return "";
+        return value.replaceAll("(?iu)\\b(cây|dược liệu|nào|gì|có|thể|là|dùng|uống|nên|chữa|trị|hỗ trợ|bằng|cho|tôi|người|bệnh|bị)\\b", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+    }
+
+    private String toHealthDisplayText(String value) {
+        String normalized = cleanHealthKeyword(value);
+        if (normalized.isBlank()) return value == null ? "" : value;
+        return switch (normalized) {
+            case "tieu duong" -> "tiểu đường";
+            case "mat ngu", "kho ngu" -> "mất ngủ";
+            case "dau dau" -> "đau đầu";
+            case "dau da day" -> "đau dạ dày";
+            case "dau bao tu", "bao tu" -> "đau bao tử";
+            case "viem hong" -> "viêm họng";
+            case "nhieu dom" -> "nhiều đờm";
+            case "dom" -> "đờm";
+            case "ho" -> "ho";
+            case "viem loet da day" -> "viêm loét dạ dày";
+            default -> value;
+        };
+    }
+
+    private List<String> expandHealthSearchKeywords(String term) {
+        String keyword = cleanHealthKeyword(term);
+        if (keyword.isBlank()) return Collections.emptyList();
+
+        LinkedHashSet<String> keywords = new LinkedHashSet<>();
+        if (keyword.equals("kho ngu") || keyword.equals("ho")) {
+            HEALTH_KEYWORD_ALIASES.getOrDefault(keyword, Collections.emptyList()).forEach(keywords::add);
+            keywords.add(keyword);
+        } else {
+            keywords.add(keyword);
+            HEALTH_KEYWORD_ALIASES.getOrDefault(keyword, Collections.emptyList()).forEach(keywords::add);
+        }
+
+        for (Map.Entry<String, List<String>> entry : HEALTH_KEYWORD_ALIASES.entrySet()) {
+            if (keyword.contains(entry.getKey())) {
+                entry.getValue().forEach(keywords::add);
+            }
+        }
+
+        return keywords.stream()
+                .map(this::cleanHealthKeyword)
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    private void searchPlantsByHealthKeyword(Map<Long, PlantMatchCandidate> candidates,
+            Set<String> matchedTerms, String term, String keyword) {
+        if (keyword == null || keyword.isBlank()) return;
+
+        for (PlantDiseases relation : plantDiseasesRepository.findPublishedPlantsByDiseaseKeyword(keyword)) {
+            Plant plant = relation.getPlant();
+            if (plant == null || plant.getId() == null) continue;
+            addPlantCandidate(candidates, plant, term, 3);
+            if (relation.getDiseases() != null && relation.getDiseases().getName() != null) {
+                matchedTerms.add(relation.getDiseases().getName());
+            }
+        }
+
+        addPlantCandidates(candidates, plantRepository.findByIndicationsContainingIgnoreCase(keyword), term, 2);
+        addPlantCandidates(candidates, plantRepository.findByMedicinalUsesContainingIgnoreCase(keyword), term, 1);
+    }
+
+    private int countPlantTextMatches(Plant plant, List<String> healthTerms) {
+        if (plant == null || healthTerms == null || healthTerms.isEmpty()) return 0;
+        String searchable = normalizeSearchText(nullToEmpty(plant.getName()) + " "
+                + nullToEmpty(plant.getIndications()) + " "
+                + nullToEmpty(plant.getMedicinalUses()) + " "
+                + nullToEmpty(plant.getFolkRemedies()));
+        int count = 0;
+        for (String term : healthTerms) {
+            String keyword = cleanHealthKeyword(term);
+            if (keyword.isBlank()) continue;
+            if (searchable.contains(keyword)
+                    || HEALTH_KEYWORD_ALIASES.getOrDefault(keyword, Collections.emptyList()).stream()
+                            .anyMatch(alias -> !alias.isBlank() && searchable.contains(alias))) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private void addPublishedPlants(Map<Long, Plant> target, List<Plant> candidates) {
+        if (candidates == null) return;
+        for (Plant plant : candidates) {
+            if (plant == null || plant.getId() == null) continue;
+            if (plant.getPlantStatus() != PlantStatus.DA_XUAT_BAN) continue;
+            target.putIfAbsent(plant.getId(), plant);
+        }
+    }
+
+    private void addPlantCandidates(Map<Long, PlantMatchCandidate> target,
+            List<Plant> plants, String matchedTerm, int score) {
+        if (plants == null) return;
+        for (Plant plant : plants) {
+            addPlantCandidate(target, plant, matchedTerm, score);
+        }
+    }
+
+    private void addPlantCandidate(Map<Long, PlantMatchCandidate> target,
+            Plant plant, String matchedTerm, int score) {
+        if (plant == null || plant.getId() == null) return;
+        if (plant.getPlantStatus() != PlantStatus.DA_XUAT_BAN) return;
+        PlantMatchCandidate candidate = target.computeIfAbsent(plant.getId(), id -> new PlantMatchCandidate(plant));
+        candidate.score += Math.max(score, 1);
+        String cleanTerm = cleanDisplayHealthKeyword(matchedTerm);
+        if (cleanTerm.isBlank()) cleanTerm = cleanHealthKeyword(matchedTerm);
+        if (!cleanTerm.isBlank()) {
+            candidate.matchedTerms.add(cleanTerm);
+        }
+    }
+
+    private String firstNonBlank(String first, String second) {
+        if (first != null && !first.isBlank()) return first;
+        if (second != null && !second.isBlank()) return second;
+        return null;
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String summarizeText(String text, int maxLength) {
+        if (text == null) return "";
+        String cleaned = text.replaceAll("\\s+", " ").trim();
+        if (cleaned.length() <= maxLength) return cleaned;
+        int cut = cleaned.lastIndexOf('.', maxLength);
+        if (cut < 80) cut = cleaned.lastIndexOf(';', maxLength);
+        if (cut < 80) cut = cleaned.lastIndexOf(',', maxLength);
+        if (cut < 80) cut = maxLength;
+        return cleaned.substring(0, cut).trim() + "...";
+    }
+
+    private static class PlantMatchCandidate {
+        private final Plant plant;
+        private final Set<String> matchedTerms = new LinkedHashSet<>();
+        private int score;
+
+        private PlantMatchCandidate(Plant plant) {
+            this.plant = plant;
+        }
     }
 
     private void addExactChunks(Map<Long, ScoredChunk> target, List<ChunkEmbedding> chunks) {
@@ -569,6 +1589,9 @@ public class RagPipelineService {
     }
  
     private String buildNoMatchResponse(Map<String, List<String>> extractedEntities) {
+        if (System.nanoTime() >= 0) {
+            return NO_DATA_RESPONSE;
+        }
         List<String> allNames = new ArrayList<>();
         allNames.addAll(extractedEntities.getOrDefault("plants", Collections.emptyList()));
         allNames.addAll(extractedEntities.getOrDefault("diseases", Collections.emptyList()));
