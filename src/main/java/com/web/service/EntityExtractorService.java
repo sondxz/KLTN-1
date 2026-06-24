@@ -340,6 +340,9 @@ public class EntityExtractorService {
         return filtered;
     }
 
+    /**
+     * Chuẩn hóa chuỗi để so sánh entity.
+     */
     private static String normalizeForComparison(String value) {
         return Normalizer.normalize(value, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}+", "")
@@ -380,6 +383,9 @@ public class EntityExtractorService {
         return results;
     }
 
+    /**
+     * Đọc mảng chuỗi từ JSON response.
+     */
     private List<String> parseStringArray(JsonObject root, String key) {
         List<String> result = new ArrayList<>();
         if (root.has(key)) {
@@ -399,10 +405,16 @@ public class EntityExtractorService {
         return result;
     }
 
+    /**
+     * Kiểm tra kết quả có entity nào không.
+     */
     private boolean hasAnyEntity(Map<String, List<String>> result) {
         return result.values().stream().anyMatch(list -> !list.isEmpty());
     }
 
+    /**
+     * Tạo kết quả rỗng cho ba nhóm entity.
+     */
     private Map<String, List<String>> emptyResult() {
         Map<String, List<String>> empty = new LinkedHashMap<>();
         empty.put("plants", Collections.emptyList());

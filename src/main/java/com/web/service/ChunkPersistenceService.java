@@ -57,6 +57,9 @@ public class ChunkPersistenceService {
         log.debug("Đã lưu {} chunks vào DB", chunks.size());
     }
 
+    /**
+     * Thay toàn bộ index RAG theo từng loại nội dung.
+     */
     @Transactional
     public void replaceAll(Map<ChunkEmbedding.ContentType, List<ChunkEmbedding>> chunksByType) {
         for (ChunkEmbedding.ContentType contentType : chunksByType.keySet()) {
@@ -70,6 +73,9 @@ public class ChunkPersistenceService {
         chunkEmbeddingRepository.flush();
     }
 
+    /**
+     * Thay index RAG của một entity cụ thể.
+     */
     @Transactional
     public void replaceEntity(ChunkEmbedding.ContentType contentType, Long entityId,
                               List<ChunkEmbedding> chunks) {

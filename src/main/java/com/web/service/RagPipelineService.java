@@ -151,6 +151,9 @@ public class RagPipelineService {
     // MAIN METHOD
     // ================================================
  
+    /**
+     * Xử lý câu hỏi chatbot qua pipeline RAG.
+     */
     public String processQuestion(String question) {
         if (question == null || question.trim().isEmpty()) {
             return "Vui lòng nhập câu hỏi.";
@@ -247,6 +250,9 @@ public class RagPipelineService {
     // LỚP 1: RETRIEVAL
     // ================================================
  
+    /**
+     * Truy xuất chunk bằng full-text và semantic search.
+     */
     private List<ScoredChunk> retrieve(String question) {
         Map<Long, ScoredChunk> chunksMap = new LinkedHashMap<>();
  
@@ -316,6 +322,9 @@ public class RagPipelineService {
     // BƯỚC 0.5: EXACT MATCH SEARCH
     // ================================================
  
+    /**
+     * Tìm chunk khớp chính xác theo entity đã trích.
+     */
     List<ScoredChunk> exactMatchSearch(Map<String, List<String>> extractedEntities, String question) {
         Map<Long, ScoredChunk> exactMatches = new LinkedHashMap<>();
         ChunkEmbedding.ContentType requestedType = requestedContentType(question);
@@ -337,6 +346,9 @@ public class RagPipelineService {
         return new ArrayList<>(exactMatches.values());
     }
 
+    /**
+     * Chọn tên cây cụ thể nhất có trong câu hỏi.
+     */
     private String resolveMostSpecificPlantName(String extractedName, String question) {
         String normalizedQuestion = normalizeSearchText(question);
         return chunkEmbeddingRepository.findByEntityNameContainingIgnoreCase(extractedName).stream()
@@ -348,6 +360,9 @@ public class RagPipelineService {
                 .orElse(extractedName);
     }
 
+    /**
+     * Chuẩn hóa lại danh sách cây đã trích.
+     */
     private Map<String, List<String>> resolveSpecificPlantEntities(
             Map<String, List<String>> entities, String question) {
         Map<String, List<String>> resolved = new LinkedHashMap<>();
@@ -362,6 +377,9 @@ public class RagPipelineService {
         return resolved;
     }
 
+    /**
+     * Bổ sung tên cây rõ ràng từ câu hỏi.
+     */
     private Map<String, List<String>> addExplicitPlantSubject(
             Map<String, List<String>> entities, String question) {
         if (!entities.getOrDefault("plants", Collections.emptyList()).isEmpty()) {
@@ -379,6 +397,9 @@ public class RagPipelineService {
         return enriched;
     }
 
+    /**
+     * Tách chủ thể cây viết trực tiếp trong câu hỏi.
+     */
     static String extractExplicitPlantSubject(String question) {
         if (question == null) return null;
         Matcher matcher = Pattern.compile(
@@ -389,6 +410,9 @@ public class RagPipelineService {
         return subject.length() >= 2 ? subject : null;
     }
 
+    /**
+     * Trả lời câu hỏi bệnh nên dùng cây nào.
+     */
     private String answerDiseaseToPlantQuestion(String question, Map<String, List<String>> extractedEntities) {
         if (!isDiseaseToPlantQuestion(question)) {
             return null;
@@ -483,6 +507,9 @@ public class RagPipelineService {
         return generateGroundedStructuredAnswer(question, structuredContext, requiredTerms, fallback);
     }
 
+    /**
+     * Trả lời câu hỏi cây hỗ trợ bệnh nào.
+     */
     private String answerPlantToDiseaseQuestion(String question, Map<String, List<String>> extractedEntities) {
         if (!isPlantToDiseaseQuestion(question, extractedEntities)) {
             return null;
@@ -532,6 +559,9 @@ public class RagPipelineService {
         return generateGroundedStructuredAnswer(question, structuredContext, requiredTerms, fallback);
     }
 
+    /**
+     * Tạo context kiểm chứng cho luồng bệnh sang cây.
+     */
     private String buildDiseaseToPlantGroundedContext(String subject, List<PlantMatchCandidate> rankedPlants) {
         StringBuilder context = new StringBuilder();
         context.append("Luồng: bệnh/triệu chứng -> cây dược liệu\n");
@@ -550,6 +580,9 @@ public class RagPipelineService {
         return context.toString();
     }
 
+    /**
+     * Tạo context kiểm chứng cho luồng cây sang bệnh.
+     */
     private String buildPlantToDiseaseGroundedContext(Plant plant, Collection<String> diseases) {
         StringBuilder context = new StringBuilder();
         context.append("Luồng: cây dược liệu -> bệnh/vấn đề sức khỏe\n");
@@ -562,6 +595,9 @@ public class RagPipelineService {
         return context.toString();
     }
 
+    /**
+     * Sinh câu trả lời có ràng buộc theo context.
+     */
     private String generateGroundedStructuredAnswer(String question, String groundedContext,
             List<String> requiredTerms, String fallback) {
         String answerContext = removeGroundedSourceLines(groundedContext);
@@ -611,6 +647,9 @@ public class RagPipelineService {
         return fallback;
     }
 
+    /**
+     * Loại dòng nguồn khỏi context trước khi gọi AI.
+     */
     private String removeGroundedSourceLines(String groundedContext) {
         if (groundedContext == null || groundedContext.isBlank()) return "";
         return Arrays.stream(groundedContext.split("\\R"))
@@ -618,6 +657,9 @@ public class RagPipelineService {
                 .collect(Collectors.joining("\n"));
     }
 
+    /**
+     * Gắn nguồn đã kiểm chứng vào câu trả lời.
+     */
     private String appendGroundedSources(String answer, String groundedContext) {
         String cleanedAnswer = stripInlineSourceLines(answer);
         LinkedHashMap<String, String> sources = extractGroundedSources(groundedContext);
@@ -633,6 +675,9 @@ public class RagPipelineService {
         return result.toString().trim();
     }
 
+    /**
+     * Xóa dòng nguồn AI tự chèn trong nội dung.
+     */
     private String stripInlineSourceLines(String answer) {
         if (answer == null || answer.isBlank()) return "";
         return Arrays.stream(answer.split("\\R"))
@@ -646,6 +691,9 @@ public class RagPipelineService {
                 .trim();
     }
 
+    /**
+     * Trích danh sách nguồn từ context đã kiểm chứng.
+     */
     private LinkedHashMap<String, String> extractGroundedSources(String groundedContext) {
         LinkedHashMap<String, String> sources = new LinkedHashMap<>();
         if (groundedContext == null || groundedContext.isBlank()) return sources;
@@ -670,6 +718,9 @@ public class RagPipelineService {
         return sources;
     }
 
+    /**
+     * Kiểm tra câu trả lời có bám đúng context không.
+     */
     private boolean isGroundedStructuredAnswerValid(String answer, List<String> requiredTerms) {
         if (answer == null || answer.isBlank()) return false;
         String normalizedAnswer = normalizeSearchText(answer);
@@ -689,6 +740,9 @@ public class RagPipelineService {
         return true;
     }
 
+    /**
+     * Trả lời câu hỏi về thuộc tính của một cây.
+     */
     private String answerPlantAttributeQuestion(String question, Map<String, List<String>> extractedEntities) {
         String normalized = normalizeSearchText(question == null ? "" : question);
         if (normalized.isBlank() || !isPlantAttributeQuestion(normalized)) {
@@ -728,25 +782,40 @@ public class RagPipelineService {
         return response;
     }
 
+    /**
+     * Nhận diện câu hỏi thuộc tính cây.
+     */
     private boolean isPlantAttributeQuestion(String normalized) {
         return isUsageQuestion(normalized)
                 || isSideEffectQuestion(normalized)
                 || isContraindicationQuestion(normalized);
     }
 
+    /**
+     * Nhận diện câu hỏi cách dùng/liều lượng.
+     */
     private boolean isUsageQuestion(String normalized) {
         return normalized.matches(".*\\b(cach dung|cach su dung|su dung|lieu luong|lieu dung|uong nhu the nao|dung nhu the nao|uong bao nhieu|dung bao nhieu)\\b.*")
                 || normalized.matches(".*\\b(uong|dung)\\b.*\\b(ra sao|nhu the nao|bao nhieu|lieu)\\b.*");
     }
 
+    /**
+     * Nhận diện câu hỏi tác dụng phụ.
+     */
     private boolean isSideEffectQuestion(String normalized) {
         return normalized.matches(".*\\b(tac dung phu|tac dung khong mong muon|rui ro|dung lau|su dung lau)\\b.*");
     }
 
+    /**
+     * Nhận diện câu hỏi chống chỉ định.
+     */
     private boolean isContraindicationQuestion(String normalized) {
         return normalized.matches(".*\\b(chong chi dinh|ai khong nen|khong nen dung|doi tuong khong nen|can than trong|than trong)\\b.*");
     }
 
+    /**
+     * Tìm cây phù hợp cho câu hỏi thuộc tính.
+     */
     private List<Plant> findPlantsForAttributeQuestion(String question, Map<String, List<String>> extractedEntities) {
         LinkedHashMap<Long, Plant> plants = new LinkedHashMap<>();
         extractedEntities.getOrDefault("plants", Collections.emptyList()).stream()
@@ -757,6 +826,9 @@ public class RagPipelineService {
         return new ArrayList<>(plants.values());
     }
 
+    /**
+     * Tách từ khóa cây khi câu hỏi không có entity rõ.
+     */
     private Optional<String> extractLoosePlantKeyword(String question) {
         String normalized = normalizeSearchText(question == null ? "" : question);
         if (normalized.isBlank()) return Optional.empty();
@@ -772,6 +844,9 @@ public class RagPipelineService {
         return Optional.of(cleaned);
     }
 
+    /**
+     * Tạo câu trả lời cho một trường dữ liệu cây.
+     */
     private String buildSinglePlantFieldAnswer(Plant plant, String prefix, String value) {
         if (value == null || value.isBlank()) {
             return null;
@@ -782,6 +857,9 @@ public class RagPipelineService {
         return result.toString().trim();
     }
 
+    /**
+     * Tạo câu trả lời thông tin tổng quan về cây.
+     */
     private String buildPlantInfoAnswer(Plant plant, String normalizedQuestion) {
         if (normalizedQuestion.contains("ten khoa hoc")) {
             return buildSinglePlantFieldAnswer(plant, "Tên khoa học của " + plant.getName() + " là ", plant.getScientificName());
@@ -820,6 +898,9 @@ public class RagPipelineService {
         return result.toString().trim();
     }
 
+    /**
+     * Gắn nguồn chi tiết cây vào câu trả lời.
+     */
     private void appendPlantSource(StringBuilder result, Plant plant) {
         if (plant.getSlug() == null || plant.getSlug().isBlank()) return;
         result.append("\n\nNguồn: [")
@@ -829,6 +910,9 @@ public class RagPipelineService {
                 .append(")");
     }
 
+    /**
+     * Trả lời câu hỏi về bài thuốc dân gian.
+     */
     private String answerFolkRemedyQuestion(String question, Map<String, List<String>> extractedEntities) {
         String normalized = normalizeSearchText(question == null ? "" : question);
         if (!normalized.contains("bai thuoc") && !normalized.contains("thuoc dan gian")) {
@@ -882,6 +966,9 @@ public class RagPipelineService {
         return result.toString().trim();
     }
 
+    /**
+     * Tìm bài thuốc fallback khi query chính không có kết quả.
+     */
     private void addFolkRemedyFallbackMatches(Map<Long, FolkRemedy> target, String keyword) {
         String normalizedKeyword = normalizeSearchText(keyword);
         if (normalizedKeyword.isBlank()) return;
@@ -898,6 +985,9 @@ public class RagPipelineService {
         }
     }
 
+    /**
+     * Trả lời câu hỏi về nghiên cứu liên quan.
+     */
     private String answerResearchQuestion(String question, Map<String, List<String>> extractedEntities) {
         String normalized = normalizeSearchText(question == null ? "" : question);
         if (!normalized.contains("nghien cuu")
@@ -962,6 +1052,9 @@ public class RagPipelineService {
         return result.toString().trim();
     }
 
+    /**
+     * Kiểm tra từ khóa nghiên cứu có quá chung không.
+     */
     private boolean isGenericResearchKeyword(String keyword) {
         String normalized = cleanHealthKeyword(keyword);
         return normalized.isBlank()
@@ -972,12 +1065,18 @@ public class RagPipelineService {
                 || normalized.equals("y hoc co truyen");
     }
 
+    /**
+     * Nhận diện câu hỏi ngoài phạm vi chatbot.
+     */
     private boolean isOutOfScopeQuestion(String question) {
         String normalized = normalizeSearchText(question == null ? "" : question);
         if (normalized.isBlank()) return false;
         return normalized.matches(".*\\b(thoi tiet|bong da|chung khoan|gia vang|bitcoin|lap trinh|python|java|phim|game|du lich|ve may bay|khach san|chinh tri)\\b.*");
     }
 
+    /**
+     * Nhận diện câu hỏi cây chữa/hỗ trợ bệnh nào.
+     */
     private boolean isPlantToDiseaseQuestion(String question, Map<String, List<String>> extractedEntities) {
         String normalized = normalizeSearchText(question == null ? "" : question);
         if (normalized.isBlank()) return false;
@@ -987,6 +1086,9 @@ public class RagPipelineService {
                 || extractPlantNamePhrase(question).isPresent();
     }
 
+    /**
+     * Tìm cây cho luồng hỏi cây sang bệnh.
+     */
     private List<Plant> findPlantsForPlantToDiseaseQuestion(String question,
             Map<String, List<String>> extractedEntities) {
         LinkedHashMap<Long, Plant> plants = new LinkedHashMap<>();
@@ -997,6 +1099,9 @@ public class RagPipelineService {
         return new ArrayList<>(plants.values());
     }
 
+    /**
+     * Tách cụm tên cây từ câu hỏi.
+     */
     private Optional<String> extractPlantNamePhrase(String question) {
         if (question == null || question.isBlank()) return Optional.empty();
         List<Pattern> patterns = List.of(
@@ -1013,6 +1118,9 @@ public class RagPipelineService {
         return Optional.empty();
     }
 
+    /**
+     * Thêm các cây khớp tên vào tập kết quả.
+     */
     private void addPlantMatches(Map<Long, Plant> target, String name) {
         String keyword = cleanPlantKeyword(name);
         if (keyword.isBlank()) return;
@@ -1021,6 +1129,9 @@ public class RagPipelineService {
         addPublishedPlants(target, plantRepository.findByOtherNamesContainingIgnoreCase(keyword));
     }
 
+    /**
+     * Làm sạch tên cây để hiển thị.
+     */
     private String cleanPlantDisplayName(String value) {
         if (value == null) return "";
         return value.replaceAll("(?iu)\\b(cây|dược liệu|này|đó|nào|gì|có|thể|là)\\b", " ")
@@ -1028,6 +1139,9 @@ public class RagPipelineService {
                 .trim();
     }
 
+    /**
+     * Làm sạch từ khóa tên cây để tìm kiếm.
+     */
     private String cleanPlantKeyword(String value) {
         if (value == null) return "";
         return normalizeSearchText(value)
@@ -1036,6 +1150,9 @@ public class RagPipelineService {
                 .trim();
     }
 
+    /**
+     * Nhận diện câu hỏi bệnh nên dùng cây gì.
+     */
     private boolean isDiseaseToPlantQuestion(String question) {
         String normalized = normalizeSearchText(question == null ? "" : question);
         if (normalized.isBlank()) return false;
@@ -1045,6 +1162,9 @@ public class RagPipelineService {
         return asksForPlant && hasHealthSignal;
     }
 
+    /**
+     * Tách danh sách bệnh/triệu chứng từ câu hỏi.
+     */
     private List<String> extractHealthTerms(String question, Map<String, List<String>> extractedEntities) {
         LinkedHashMap<String, String> terms = new LinkedHashMap<>();
         extractDelimitedSymptoms(question).forEach(term -> addHealthTerm(terms, term));
@@ -1079,6 +1199,9 @@ public class RagPipelineService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Tách triệu chứng được ngăn cách bằng dấu phẩy.
+     */
     private List<String> extractDelimitedSymptoms(String question) {
         if (question == null || question.isBlank()) return Collections.emptyList();
         if (!question.contains(",") && !question.contains(";")) return Collections.emptyList();
@@ -1097,6 +1220,9 @@ public class RagPipelineService {
         return splitHealthTerms(symptoms);
     }
 
+    /**
+     * Thêm thuật ngữ sức khỏe đã chuẩn hóa.
+     */
     private void addHealthTerm(Map<String, String> terms, String term) {
         String cleaned = cleanDisplayHealthKeyword(term);
         if (cleaned.isBlank()) cleaned = cleanHealthKeyword(term);
@@ -1105,6 +1231,9 @@ public class RagPipelineService {
         terms.putIfAbsent(key, cleaned);
     }
 
+    /**
+     * Chia chuỗi sức khỏe thành các thuật ngữ riêng.
+     */
     private List<String> splitHealthTerms(String value) {
         if (value == null || value.isBlank()) return Collections.emptyList();
         if (System.nanoTime() >= 0) {
@@ -1130,6 +1259,9 @@ public class RagPipelineService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Tách cụm bệnh theo văn bản gốc để hiển thị.
+     */
     private Optional<String> extractDisplayDiseasePhrase(String question) {
         if (question == null || question.isBlank()) return Optional.empty();
         List<Pattern> patterns = List.of(
@@ -1148,6 +1280,9 @@ public class RagPipelineService {
         return Optional.empty();
     }
 
+    /**
+     * Tách cụm bệnh từ câu hỏi đã chuẩn hóa.
+     */
     private Optional<String> extractDiseasePhrase(String normalizedQuestion) {
         List<Pattern> patterns = List.of(
                 Pattern.compile("\\bbenh\\s+(.+?)(?:\\s+(?:thi|dung|uong|nen|chua|tri|ho tro|bang|thieu|can)|[?.!,]|$)"),
@@ -1165,6 +1300,9 @@ public class RagPipelineService {
         return Optional.empty();
     }
 
+    /**
+     * Tách cụm sức khỏe khi câu hỏi không theo mẫu rõ.
+     */
     private Optional<String> extractLooseHealthPhrase(String question) {
         String normalized = normalizeSearchText(question == null ? "" : question);
         if (normalized.isBlank()) return Optional.empty();
@@ -1179,6 +1317,9 @@ public class RagPipelineService {
         return cleaned.isBlank() ? Optional.empty() : Optional.of(cleaned);
     }
 
+    /**
+     * Làm sạch từ khóa sức khỏe để tìm kiếm.
+     */
     private String cleanHealthKeyword(String value) {
         if (value == null) return "";
         return normalizeSearchText(value)
@@ -1187,6 +1328,9 @@ public class RagPipelineService {
                 .trim();
     }
 
+    /**
+     * Làm sạch từ khóa sức khỏe để hiển thị.
+     */
     private String cleanDisplayHealthKeyword(String value) {
         if (value == null) return "";
         return value.replaceAll("(?iu)\\b(cây|dược liệu|nào|gì|có|thể|là|dùng|uống|nên|chữa|trị|hỗ trợ|bằng|cho|tôi|người|bệnh|bị)\\b", " ")
@@ -1194,6 +1338,9 @@ public class RagPipelineService {
                 .trim();
     }
 
+    /**
+     * Chuyển từ khóa sức khỏe sang nhãn dễ đọc.
+     */
     private String toHealthDisplayText(String value) {
         String normalized = cleanHealthKeyword(value);
         if (normalized.isBlank()) return value == null ? "" : value;
@@ -1212,6 +1359,9 @@ public class RagPipelineService {
         };
     }
 
+    /**
+     * Mở rộng từ khóa sức khỏe bằng các alias.
+     */
     private List<String> expandHealthSearchKeywords(String term) {
         String keyword = cleanHealthKeyword(term);
         if (keyword.isBlank()) return Collections.emptyList();
@@ -1238,6 +1388,9 @@ public class RagPipelineService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Tìm cây theo bệnh/triệu chứng và cộng điểm ứng viên.
+     */
     private void searchPlantsByHealthKeyword(Map<Long, PlantMatchCandidate> candidates,
             Set<String> matchedTerms, String term, String keyword) {
         if (keyword == null || keyword.isBlank()) return;
@@ -1255,6 +1408,9 @@ public class RagPipelineService {
         addPlantCandidates(candidates, plantRepository.findByMedicinalUsesContainingIgnoreCase(keyword), term, 1);
     }
 
+    /**
+     * Đếm số thuật ngữ sức khỏe xuất hiện trong dữ liệu cây.
+     */
     private int countPlantTextMatches(Plant plant, List<String> healthTerms) {
         if (plant == null || healthTerms == null || healthTerms.isEmpty()) return 0;
         String searchable = normalizeSearchText(nullToEmpty(plant.getName()) + " "
@@ -1274,6 +1430,9 @@ public class RagPipelineService {
         return count;
     }
 
+    /**
+     * Thêm cây đã xuất bản vào tập kết quả.
+     */
     private void addPublishedPlants(Map<Long, Plant> target, List<Plant> candidates) {
         if (candidates == null) return;
         for (Plant plant : candidates) {
@@ -1283,6 +1442,9 @@ public class RagPipelineService {
         }
     }
 
+    /**
+     * Thêm nhiều ứng viên cây và điểm khớp.
+     */
     private void addPlantCandidates(Map<Long, PlantMatchCandidate> target,
             List<Plant> plants, String matchedTerm, int score) {
         if (plants == null) return;
@@ -1291,6 +1453,9 @@ public class RagPipelineService {
         }
     }
 
+    /**
+     * Thêm hoặc cập nhật điểm cho một ứng viên cây.
+     */
     private void addPlantCandidate(Map<Long, PlantMatchCandidate> target,
             Plant plant, String matchedTerm, int score) {
         if (plant == null || plant.getId() == null) return;
@@ -1304,16 +1469,25 @@ public class RagPipelineService {
         }
     }
 
+    /**
+     * Lấy giá trị đầu tiên không rỗng.
+     */
     private String firstNonBlank(String first, String second) {
         if (first != null && !first.isBlank()) return first;
         if (second != null && !second.isBlank()) return second;
         return null;
     }
 
+    /**
+     * Chuyển null thành chuỗi rỗng.
+     */
     private String nullToEmpty(String value) {
         return value == null ? "" : value;
     }
 
+    /**
+     * Rút gọn văn bản theo độ dài tối đa.
+     */
     private String summarizeText(String text, int maxLength) {
         if (text == null) return "";
         String cleaned = text.replaceAll("\\s+", " ").trim();
@@ -1330,11 +1504,17 @@ public class RagPipelineService {
         private final Set<String> matchedTerms = new LinkedHashSet<>();
         private int score;
 
+        /**
+         * Tạo ứng viên cây cho bước xếp hạng.
+         */
         private PlantMatchCandidate(Plant plant) {
             this.plant = plant;
         }
     }
 
+    /**
+     * Thêm chunk khớp chính xác vào map kết quả.
+     */
     private void addExactChunks(Map<Long, ScoredChunk> target, List<ChunkEmbedding> chunks) {
         for (ChunkEmbedding ce : chunks) {
             ScoredChunk sc = new ScoredChunk(ce);
@@ -1345,11 +1525,17 @@ public class RagPipelineService {
         }
     }
 
+    /**
+     * Kiểm tra text có chứa phrase sau chuẩn hóa.
+     */
     static boolean containsNormalizedPhrase(String text, String phrase) {
         if (text == null || phrase == null) return false;
         return normalizeSearchText(text).contains(normalizeSearchText(phrase));
     }
 
+    /**
+     * Chuẩn hóa text để tìm kiếm và so sánh.
+     */
     private static String normalizeSearchText(String value) {
         return Normalizer.normalize(value, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}+", "")
@@ -1364,6 +1550,9 @@ public class RagPipelineService {
     // BƯỚC 1.5: ENTITY VERIFICATION
     // ================================================
  
+    /**
+     * Lọc chunk theo entity đã trích từ câu hỏi.
+     */
     private List<ScoredChunk> verifyEntityMatch(
             Map<String, List<String>> extractedEntities,
             List<ScoredChunk> chunks) {
@@ -1404,6 +1593,9 @@ public class RagPipelineService {
     // BƯỚC 2: RERANK
     // ================================================
  
+    /**
+     * Xếp hạng lại chunk theo điểm và độ ưu tiên nguồn.
+     */
     private List<ScoredChunk> rerank(List<ScoredChunk> chunks,
             Map<String, List<String>> extractedEntities, int topK) {
         boolean hasEntities = extractedEntities.values().stream().anyMatch(l -> !l.isEmpty());
@@ -1425,6 +1617,9 @@ public class RagPipelineService {
     // BƯỚC 3: GENERATE
     // ================================================
  
+    /**
+     * Ghép các chunk thành context gửi cho AI.
+     */
     private String buildContext(List<ScoredChunk> chunks) {
         StringBuilder context = new StringBuilder();
         for (int i = 0; i < chunks.size(); i++) {
@@ -1444,6 +1639,9 @@ public class RagPipelineService {
         return context.toString();
     }
 
+    /**
+     * Gắn nguồn đã kiểm chứng theo loại nội dung được hỏi.
+     */
     private String appendVerifiedSources(String response, List<ScoredChunk> chunks, String question) {
         if (response == null || response.isBlank()
                 || response.startsWith("❌") || response.startsWith("⚠") || response.startsWith("🌿")) {
@@ -1469,6 +1667,9 @@ public class RagPipelineService {
         return result.toString().trim();
     }
 
+    /**
+     * Tạo đường dẫn nguồn cho một chunk.
+     */
     static String sourcePath(ChunkEmbedding chunk) {
         if (chunk == null || chunk.getContentType() == null) return "";
         switch (chunk.getContentType()) {
@@ -1485,6 +1686,9 @@ public class RagPipelineService {
         }
     }
 
+    /**
+     * Xác định loại nội dung người dùng đang hỏi.
+     */
     static ChunkEmbedding.ContentType requestedContentType(String question) {
         String normalized = normalizeSearchText(question == null ? "" : question);
         if (normalized.contains("bai thuoc")) return ChunkEmbedding.ContentType.folk_remedy;
@@ -1493,6 +1697,9 @@ public class RagPipelineService {
         return ChunkEmbedding.ContentType.plant;
     }
 
+    /**
+     * Xóa nguồn do AI tự sinh để thay bằng nguồn kiểm chứng.
+     */
     static String stripGeneratedSources(String response) {
         if (response == null) return null;
         return response.replaceAll(
@@ -1535,6 +1742,9 @@ public class RagPipelineService {
         return cleanResponse(callGeminiWithRetry(prompt));
     }
 
+    /**
+     * Kiểm tra câu trả lời có phủ đủ ý người dùng hỏi không.
+     */
     static boolean coversRequestedIntents(String response, String question) {
         if (response == null || response.isBlank() || question == null) return false;
         String normalizedQuestion = normalizeSearchText(question);
@@ -1588,6 +1798,9 @@ public class RagPipelineService {
         return text.trim();
     }
  
+    /**
+     * Tạo phản hồi khi không tìm thấy dữ liệu phù hợp.
+     */
     private String buildNoMatchResponse(Map<String, List<String>> extractedEntities) {
         if (System.nanoTime() >= 0) {
             return NO_DATA_RESPONSE;
@@ -1638,6 +1851,9 @@ public class RagPipelineService {
                 .replaceAll("^-|-$", "");
     }
 
+    /**
+     * Tìm gợi ý cây tương tự khi không có exact match.
+     */
     private List<String> findSimilarEntities(List<String> names) {
         Set<String> similar = new LinkedHashSet<>();
         for (String name : names) {
@@ -1654,6 +1870,9 @@ public class RagPipelineService {
         return new ArrayList<>(similar).stream().limit(5).collect(Collectors.toList());
     }
  
+    /**
+     * Tạo mô tả ngắn cho entity đã trích.
+     */
     private String buildEntityDescription(Map<String, List<String>> entities) {
         List<String> parts = new ArrayList<>();
         List<String> plants = entities.getOrDefault("plants", Collections.emptyList());
@@ -1672,10 +1891,16 @@ public class RagPipelineService {
         return parts.isEmpty() ? "cây dược liệu (chưa xác định)" : String.join(" | ", parts);
     }
 
+    /**
+     * Kiểm tra map entity có dữ liệu không.
+     */
     private boolean hasAnyEntity(Map<String, List<String>> entities) {
         return entities.values().stream().anyMatch(l -> !l.isEmpty());
     }
 
+    /**
+     * Kiểm tra câu hỏi có cần tên cây/bài thuốc cụ thể.
+     */
     static boolean requiresSpecificEntity(String question) {
         if (question == null) return false;
         String normalized = java.text.Normalizer.normalize(question, java.text.Normalizer.Form.NFD)
@@ -1685,6 +1910,9 @@ public class RagPipelineService {
         return normalized.matches(".*\\b(lieu luong|lieu dung|cach dung|cach su dung|su dung|uong bao nhieu|dung bao nhieu|chong chi dinh|tac dung phu)\\b.*");
     }
 
+    /**
+     * Gọi Gemini nhiều model với retry.
+     */
     private String callGeminiWithRetry(String prompt) {
         for (String model : GEMINI_MODELS) {
             for (int attempt = 1; attempt <= GEMINI_MAX_RETRIES; attempt++) {
@@ -1716,6 +1944,9 @@ public class RagPipelineService {
         return "❌ Không thể kết nối với AI. Vui lòng thử lại sau.";
     }
  
+    /**
+     * Gửi một request generateContent đến Gemini.
+     */
     private String callGemini(String prompt, String model) {
         try {
             JsonObject root = new JsonObject();
@@ -1796,6 +2027,9 @@ public class RagPipelineService {
         }
     }
  
+    /**
+     * Lấy nhãn hiển thị cho loại nội dung.
+     */
     private String getContentTypeLabel(ChunkEmbedding.ContentType type) {
         switch (type) {
             case plant: return "Cây dược liệu";
@@ -1812,6 +2046,9 @@ public class RagPipelineService {
     // ================================================
  
     private static class GeminiRetryableException extends RuntimeException {
+        /**
+         * Tạo lỗi có thể retry khi gọi Gemini.
+         */
         public GeminiRetryableException(String message) { super(message); }
     }
  
@@ -1822,6 +2059,9 @@ public class RagPipelineService {
         private double combinedScore;
         private boolean entityMatched;
  
+        /**
+         * Tạo wrapper điểm cho một chunk.
+         */
         public ScoredChunk(ChunkEmbedding chunk) {
             this.chunk = chunk;
             this.ftsScore = 0.0;
@@ -1830,14 +2070,23 @@ public class RagPipelineService {
             this.entityMatched = false;
         }
  
+        /** Lấy chunk gốc. */
         public ChunkEmbedding getChunk() { return chunk; }
+        /** Lấy điểm full-text search. */
         public double getFtsScore() { return ftsScore; }
+        /** Gán điểm full-text search. */
         public void setFtsScore(double ftsScore) { this.ftsScore = ftsScore; }
+        /** Lấy điểm cosine similarity. */
         public double getCosineScore() { return cosineScore; }
+        /** Gán điểm cosine similarity. */
         public void setCosineScore(double cosineScore) { this.cosineScore = cosineScore; }
+        /** Lấy điểm tổng hợp. */
         public double getCombinedScore() { return combinedScore; }
+        /** Gán điểm tổng hợp. */
         public void setCombinedScore(double combinedScore) { this.combinedScore = combinedScore; }
+        /** Kiểm tra chunk đã khớp entity chưa. */
         public boolean isEntityMatched() { return entityMatched; }
+        /** Gán trạng thái khớp entity. */
         public void setEntityMatched(boolean entityMatched) { this.entityMatched = entityMatched; }
     }
 }

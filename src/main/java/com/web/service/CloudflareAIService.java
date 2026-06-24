@@ -289,6 +289,9 @@ public class CloudflareAIService {
 
     @FunctionalInterface
     private interface ResponseParser<T> {
+        /**
+         * Parse body response thành kiểu dữ liệu mong muốn.
+         */
         T parse(String responseBody);
     }
 }

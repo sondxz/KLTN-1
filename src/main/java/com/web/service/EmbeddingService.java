@@ -284,6 +284,9 @@ public class EmbeddingService {
         chunkPersistenceService.replaceEntity(contentType, entityId, chunks);
     }
 
+    /**
+     * Đồng bộ lại một entity RAG ở background.
+     */
     @Async("ragIndexingExecutor")
     public void syncEntityAsync(ChunkEmbedding.ContentType contentType, Long entityId) {
         try {
@@ -367,14 +370,23 @@ public class EmbeddingService {
         return indexingStatus;
     }
 
+    /**
+     * Lấy phần trăm tiến trình indexing.
+     */
     public int getIndexingProgress() {
         return indexingProgress.get();
     }
 
+    /**
+     * Kiểm tra indexing có đang chạy không.
+     */
     public boolean isIndexing() {
         return indexingInProgress.get();
     }
 
+    /**
+     * Đánh dấu bắt đầu chạy full indexing.
+     */
     public boolean beginFullIndexing() {
         if (!indexingInProgress.compareAndSet(false, true)) {
             return false;
@@ -384,11 +396,17 @@ public class EmbeddingService {
         return true;
     }
 
+    /**
+     * Ghi nhận lỗi khi không dispatch được indexing.
+     */
     public void failIndexingDispatch(String message) {
         indexingStatus = "error: " + message;
         indexingInProgress.set(false);
     }
 
+    /**
+     * Tạo toàn bộ chunk cho cây đã xuất bản.
+     */
     private BuildResult buildAllPlants() {
         List<ChunkEmbedding> chunks = new ArrayList<>();
         int entities = 0;
@@ -401,6 +419,9 @@ public class EmbeddingService {
         return new BuildResult(entities, chunks);
     }
 
+    /**
+     * Tạo toàn bộ chunk cho bài viết đã xuất bản.
+     */
     private BuildResult buildAllArticles() {
         List<ChunkEmbedding> chunks = new ArrayList<>();
         int entities = 0;
@@ -413,6 +434,9 @@ public class EmbeddingService {
         return new BuildResult(entities, chunks);
     }
 
+    /**
+     * Tạo toàn bộ chunk cho nghiên cứu đã xuất bản.
+     */
     private BuildResult buildAllResearch() {
         List<ChunkEmbedding> chunks = new ArrayList<>();
         int entities = 0;
@@ -425,6 +449,9 @@ public class EmbeddingService {
         return new BuildResult(entities, chunks);
     }
 
+    /**
+     * Tạo toàn bộ chunk cho bài thuốc đã duyệt.
+     */
     private BuildResult buildAllFolkRemedies(List<FolkRemedy> folkRemedies) {
         List<ChunkEmbedding> chunks = new ArrayList<>();
         int entities = 0;
@@ -444,10 +471,16 @@ public class EmbeddingService {
     // (DB operations delegated to ChunkPersistenceService)
     // ================================================
 
+    /**
+     * Lưu index RAG cho một cây.
+     */
     private void indexPlant(Plant plant) {
         chunkPersistenceService.saveBatch(buildPlantChunks(plant));
     }
 
+    /**
+     * Xây danh sách chunk từ dữ liệu cây.
+     */
     private List<ChunkEmbedding> buildPlantChunks(Plant plant) {
         StringBuilder fullText = new StringBuilder();
         fullText.append("Cây dược liệu: ").append(nullSafe(plant.getName())).append("\n");
@@ -475,10 +508,16 @@ public class EmbeddingService {
                 plant.getSlug(), plant.getName(), chunks);
     }
 
+    /**
+     * Lưu index RAG cho một bài viết.
+     */
     private void indexArticle(Article article) {
         chunkPersistenceService.saveBatch(buildArticleChunks(article));
     }
 
+    /**
+     * Xây danh sách chunk từ bài viết.
+     */
     private List<ChunkEmbedding> buildArticleChunks(Article article) {
         StringBuilder fullText = new StringBuilder();
         fullText.append("Bài viết: ").append(nullSafe(article.getTitle())).append("\n");
@@ -490,10 +529,16 @@ public class EmbeddingService {
                 article.getSlug(), article.getTitle(), chunks);
     }
 
+    /**
+     * Lưu index RAG cho một nghiên cứu.
+     */
     private void indexResearch(Research research) {
         chunkPersistenceService.saveBatch(buildResearchChunks(research));
     }
 
+    /**
+     * Xây danh sách chunk từ nghiên cứu.
+     */
     private List<ChunkEmbedding> buildResearchChunks(Research research) {
         StringBuilder fullText = new StringBuilder();
         fullText.append("Nghiên cứu: ").append(nullSafe(research.getTitle())).append("\n");
@@ -506,10 +551,16 @@ public class EmbeddingService {
                 research.getSlug(), research.getTitle(), chunks);
     }
 
+    /**
+     * Lưu index RAG cho một bài thuốc.
+     */
     private void indexFolkRemedy(FolkRemedy fr) {
         chunkPersistenceService.saveBatch(buildFolkRemedyChunks(fr));
     }
 
+    /**
+     * Xây danh sách chunk từ bài thuốc dân gian.
+     */
     private List<ChunkEmbedding> buildFolkRemedyChunks(FolkRemedy fr) {
         StringBuilder fullText = new StringBuilder();
         fullText.append("Bài thuốc dân gian: ").append(nullSafe(fr.getName())).append("\n");
@@ -650,6 +701,9 @@ public class EmbeddingService {
         return chunks;
     }
 
+    /**
+     * Chuyển null thành chuỗi rỗng.
+     */
     private String nullSafe(String s) {
         return s != null ? s : "";
     }
@@ -677,6 +731,9 @@ public class EmbeddingService {
         private final int entities;
         private final List<ChunkEmbedding> chunks;
 
+        /**
+         * Tạo kết quả build chunk nội bộ.
+         */
         private BuildResult(int entities, List<ChunkEmbedding> chunks) {
             this.entities = entities;
             this.chunks = chunks;
@@ -693,6 +750,9 @@ public class EmbeddingService {
         private final int folkRemediesIndexed;
         private final String status;
 
+        /**
+         * Tạo kết quả tổng hợp sau khi indexing.
+         */
         public IndexingResult(int plantsIndexed, int articlesIndexed,
                 int researchIndexed, int folkRemediesIndexed, String status) {
             this.plantsIndexed = plantsIndexed;
@@ -702,22 +762,37 @@ public class EmbeddingService {
             this.status = status;
         }
 
+        /**
+         * Lấy số cây đã index.
+         */
         public int getPlantsIndexed() {
             return plantsIndexed;
         }
 
+        /**
+         * Lấy số bài viết đã index.
+         */
         public int getArticlesIndexed() {
             return articlesIndexed;
         }
 
+        /**
+         * Lấy số nghiên cứu đã index.
+         */
         public int getResearchIndexed() {
             return researchIndexed;
         }
 
+        /**
+         * Lấy số bài thuốc đã index.
+         */
         public int getFolkRemediesIndexed() {
             return folkRemediesIndexed;
         }
 
+        /**
+         * Lấy trạng thái indexing.
+         */
         public String getStatus() {
             return status;
         }

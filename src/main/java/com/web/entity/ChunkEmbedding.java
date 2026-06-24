@@ -48,6 +48,9 @@ public class ChunkEmbedding {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    /**
+     * Gán thời điểm tạo chunk trước khi lưu.
+     */
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {

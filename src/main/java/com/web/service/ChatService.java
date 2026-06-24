@@ -137,6 +137,9 @@ public class ChatService {
     // Thêm retry cho Gemini API calls
     // ================================================
 
+    /**
+     * Tạo phần dữ liệu ảnh gửi sang Gemini Vision.
+     */
     private JsonObject buildImagePart(String imageUrl) {
         if (imageUrl.startsWith("data:image")) {
             return buildImagePartFromDataUrl(imageUrl);
@@ -163,6 +166,9 @@ public class ChatService {
         }
     }
 
+    /**
+     * Chuyển data URL ảnh thành inline_data cho Gemini.
+     */
     private JsonObject buildImagePartFromDataUrl(String dataUrl) {
         try {
             String[] parts = dataUrl.split(",");
@@ -186,6 +192,9 @@ public class ChatService {
         }
     }
 
+    /**
+     * Nhận diện tối đa 3 tên cây có thể có trong ảnh.
+     */
     private List<Map<String, String>> identifyPlantNameFromImage(String imageUrl) {
         try {
             JsonObject root = new JsonObject();
@@ -492,29 +501,44 @@ public class ChatService {
         return null;
     }
 
+    /**
+     * Chuẩn hóa độ tin cậy trả về từ Vision.
+     */
     static String normalizeConfidence(String confidence) {
         if (confidence == null) return "low";
         String value = confidence.trim().toLowerCase(Locale.ROOT);
         return value.equals("high") || value.equals("medium") ? value : "low";
     }
 
+    /**
+     * Kiểm tra ảnh có đủ bằng chứng hình thái hay không.
+     */
     static boolean hasSufficientVisualEvidence(Map<String, String> candidate) {
         if (candidate == null) return false;
         return "high".equals(normalizeConfidence(candidate.get("confidence")))
                 && Boolean.parseBoolean(candidate.get("diagnostic_features_visible"));
     }
 
+    /**
+     * Lấy candidate nhận diện ưu tiên nhất.
+     */
     static Map<String, String> primaryCandidate(List<Map<String, String>> candidates) {
         if (candidates == null || candidates.isEmpty()) return Collections.emptyMap();
         return candidates.get(0);
     }
 
+    /**
+     * Lấy chuỗi đầu tiên không rỗng.
+     */
     static String firstNonBlank(String first, String second) {
         if (first != null && !first.isBlank()) return first.trim();
         if (second != null && !second.isBlank()) return second.trim();
         return null;
     }
 
+    /**
+     * Chuẩn hóa tên cây để so khớp.
+     */
     static String normalizePlantName(String value) {
         if (value == null) return "";
         String normalized = Normalizer.normalize(value, Normalizer.Form.NFD)
@@ -527,6 +551,9 @@ public class ChatService {
         return normalized.replaceFirst("^cay\\s+", "");
     }
 
+    /**
+     * Chuẩn hóa tên khoa học về dạng genus species.
+     */
     static String canonicalScientificName(String value) {
         if (value == null) return "";
         Matcher matcher = Pattern.compile("([A-Za-z]+)\\s+([a-z][A-Za-z-]+)").matcher(value.trim());
@@ -534,6 +561,9 @@ public class ChatService {
         return (matcher.group(1) + " " + matcher.group(2)).toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * Kiểm tra tên khác có khớp chính xác hay không.
+     */
     private static boolean containsExactAlias(String aliases, String normalizedName) {
         if (aliases == null || aliases.isBlank()) return false;
         for (String alias : aliases.split("[,;/|]")) {
@@ -598,6 +628,9 @@ public class ChatService {
         return null;
     }
 
+    /**
+     * Rút gọn body lỗi để ghi log.
+     */
     private String summarizeErrorBody(String body) {
         if (body == null || body.isBlank()) return "";
         String compact = body.replaceAll("\\s+", " ").trim();

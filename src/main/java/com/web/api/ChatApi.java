@@ -45,6 +45,9 @@ public class ChatApi {
     @Autowired(required = false)
     private FolkRemedyService folkRemedyService;
 
+    /**
+     * Nhận câu hỏi chatbot và trả về câu trả lời AI.
+     */
     @PostMapping
     public ResponseEntity<Map<String, String>> chat(
             @RequestBody Map<String, String> request, 
@@ -162,6 +165,9 @@ public class ChatApi {
         return ResponseEntity.ok(status);
     }
 
+    /**
+     * Lấy IP client để giới hạn tần suất gửi chat.
+     */
     private String getClientIp(HttpServletRequest request) {
         String ip = request.getHeader("X-Forwarded-For");
         if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {

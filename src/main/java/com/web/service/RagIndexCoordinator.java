@@ -12,6 +12,9 @@ public class RagIndexCoordinator {
     @Autowired
     private EmbeddingService embeddingService;
 
+    /**
+     * Đồng bộ lại RAG sau khi transaction lưu dữ liệu thành công.
+     */
     public void syncAfterCommit(ChunkEmbedding.ContentType contentType, Long entityId) {
         if (entityId == null) {
             return;
@@ -20,6 +23,9 @@ public class RagIndexCoordinator {
         Runnable sync = () -> embeddingService.syncEntityAsync(contentType, entityId);
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                /**
+                 * Chạy đồng bộ RAG sau khi commit.
+                 */
                 @Override
                 public void afterCommit() {
                     sync.run();
